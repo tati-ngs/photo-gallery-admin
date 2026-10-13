@@ -1,43 +1,30 @@
 import Image from "next/image";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
-const galleryDetails = {
-  client: "Tatiana N'guessan",
-  code: "PS23-TATIANA",
-  type: "Shooting & lifestyle",
-  date: "10/10/2026",
-  status: "Prête",
-  totalPhotos: 42,
-  deliveredPhotos: 30,
+type GalleryDetails = {
+  client: string;
+  code: string;
+  type: string;
+  date: string;
+  status: string;
+  photos: number;
 };
 
-const photos = [
-  {
-    src: "/gallery-samples/shooting.jpeg",
-    alt: "Portrait lifestyle du client",
-    label: "Sélection",
-  },
-  {
-    src: "/gallery-samples/mariage.jpeg",
-    alt: "Photo de cérémonie",
-    label: "À valider",
-  },
-  {
-    src: "/gallery-samples/marque.jpg",
-    alt: "Photo de marque",
-    label: "Livrée",
-  },
-  {
-    src: "/gallery-samples/conference.jpeg",
-    alt: "Photo de conférence",
-    label: "Livrée",
-  },
-  {
-    src: "/gallery-samples/matiere.jpg",
-    alt: "Photo de détail",
-    label: "Retouche",
-  },
-];
+const emptyGalleryDetails: GalleryDetails = {
+  client: "Galerie introuvable",
+  code: "",
+  type: "Non renseigné",
+  date: "Non renseignée",
+  status: "Brouillon",
+  photos: 0,
+};
+
+const photos: {
+  src: string;
+  alt: string;
+  label: string;
+}[] = [];
 
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", active: false },
@@ -53,6 +40,12 @@ export default async function GalleryDetailPage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
+  const { data } = await supabase
+    .from("galleries")
+    .select("client, code, type, date, status, photos")
+    .eq("code", code)
+    .maybeSingle();
+  const galleryDetails = (data as GalleryDetails | null) ?? emptyGalleryDetails;
 
   return (
     <main className="min-h-screen bg-[#f7f5fb] text-[#191025]">
@@ -104,7 +97,7 @@ export default async function GalleryDetailPage({
                     {galleryDetails.client}
                   </h1>
                   <p className="mt-2 text-sm text-white/75">
-                    Code demandé : {code}
+                    Code demandé : {galleryDetails.code || code}
                   </p>
                 </div>
 
@@ -141,7 +134,7 @@ export default async function GalleryDetailPage({
                   <p className="text-xs font-black uppercase tracking-wide text-[#8a7a9f]">
                     Photos
                   </p>
-                  <p className="mt-2 font-black">{galleryDetails.totalPhotos}</p>
+                  <p className="mt-2 font-black">{galleryDetails.photos}</p>
                 </article>
                 <article className="rounded-2xl border border-[#e8def5] bg-white p-4 shadow-sm">
                   <p className="text-xs font-black uppercase tracking-wide text-[#8a7a9f]">
@@ -165,11 +158,17 @@ export default async function GalleryDetailPage({
                       </p>
                     </div>
                     <span className="w-fit rounded-full bg-[#f1e9ff] px-3 py-1 text-xs font-black text-[#6f3de2]">
-                      {galleryDetails.deliveredPhotos} livrées
+                      {galleryDetails.photos} photos
                     </span>
                   </div>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {photos.length === 0 && (
+                      <p className="border border-dashed border-[#e8def5] bg-[#fbf8ff] p-5 text-sm font-bold text-[#766985] sm:col-span-2 xl:col-span-3">
+                        Aucune photo dans cette galerie pour le moment.
+                      </p>
+                    )}
+
                     {photos.map((photo) => (
                       <article
                         className="overflow-hidden border border-[#eee6f7] bg-[#fbf8ff] shadow-sm"
@@ -215,7 +214,7 @@ export default async function GalleryDetailPage({
                       <p className="flex justify-between gap-4">
                         <span className="text-[#766985]">Code</span>
                         <span className="font-mono text-xs font-black">
-                          {galleryDetails.code}
+                          {galleryDetails.code || code}
                         </span>
                       </p>
                       <p className="flex justify-between gap-4">

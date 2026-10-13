@@ -4,33 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
-const publicPhotos = [
-  {
-    src: "/gallery-samples/mariage.jpeg",
-    title: "Cérémonie en extérieur",
-    category: "Cérémonie",
-  },
-  {
-    src: "/gallery-samples/shooting.jpeg",
-    title: "Portrait lifestyle",
-    category: "Shooting",
-  },
-  {
-    src: "/gallery-samples/marque.jpg",
-    title: "Portrait de marque",
-    category: "Marque",
-  },
-  {
-    src: "/gallery-samples/conference.jpeg",
-    title: "Conférence",
-    category: "Conférence",
-  },
-  {
-    src: "/gallery-samples/matiere.jpg",
-    title: "Détail de séance",
-    category: "Cérémonie",
-  },
-];
+const publicPhotos: {
+  src: string;
+  title: string;
+  category: string;
+}[] = [];
 
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", active: false },
@@ -131,6 +109,12 @@ export function PhotosClient() {
                   </div>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {publicPhotos.length === 0 && (
+                      <p className="rounded-2xl border border-dashed border-[#e8def5] bg-[#fbf8ff] p-5 text-sm font-bold text-[#766985] sm:col-span-2 xl:col-span-3">
+                        Aucune photo publiée pour le moment.
+                      </p>
+                    )}
+
                     {publicPhotos.map((photo, index) => (
                       <article
                         className="grid overflow-hidden border border-[#eee6f7] bg-white shadow-sm"
@@ -188,7 +172,7 @@ export function PhotosClient() {
                       {publicPhotos.length}
                     </p>
                     <p className="mt-2 text-sm font-medium text-white/75">
-                      photos visibles dans la galerie publique.
+                      photos publiées.
                     </p>
                   </section>
 

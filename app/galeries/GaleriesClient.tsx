@@ -1,18 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
-import { galleries, statusClasses } from "@/data/galleries";
+import { FormEvent, useEffect, useState } from "react";
+import { galleries, statusClasses, type Gallery } from "@/data/galleries";
+import { supabase } from "@/lib/supabase";
 
-type Gallery = (typeof galleries)[number];
+type GalleryStatus = keyof typeof statusClasses;
+
+type GalleryRow = Omit<Gallery, "photos" | "status"> & {
+  id?: number;
+  created_at?: string;
+  photos: number | string;
+  status: string;
+};
 
 const initialForm = {
   client: "",
   type: "",
   date: "",
 };
-
-const galleriesStorageKey = "ps23-admin-galleries";
 
 const generateGalleryCode = (clientName: string, galleryNumber: number) => {
   const readableName = clientName
@@ -27,6 +33,9 @@ const generateGalleryCode = (clientName: string, galleryNumber: number) => {
   return `PS23-${readableName || "CLIENT"}-${formattedNumber}`;
 };
 
+const getStatusClass = (status: string) =>
+  statusClasses[status as GalleryStatus] ?? statusClasses.Brouillon;
+
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", active: false },
   { label: "Galeries", href: "/galeries", active: true },
@@ -36,18 +45,13 @@ const sidebarLinks = [
 ];
 
 export default function GaleriesClient() {
-  const [galleryList, setGalleryList] = useState<Gallery[]>(() => {
-    if (typeof window === "undefined") {
-      return galleries;
-    }
-
-    const savedGalleries = window.localStorage.getItem(galleriesStorageKey);
-
-    return savedGalleries ? JSON.parse(savedGalleries) : galleries;
-  });
+  const [galleryList, setGalleryList] = useState<GalleryRow[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
   const [search, setSearch] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [feedback, setFeedback] = useState("");
   const generatedCode = generateGalleryCode(form.client, galleryList.length + 1);
   const filteredGalleries = galleryList.filter((gallery) => {
     const searchableText = `${gallery.client} ${gallery.code} ${gallery.type}`
@@ -57,31 +61,57 @@ export default function GaleriesClient() {
     return searchableText.includes(search.toLowerCase().trim());
   });
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  useEffect(() => {
+    const loadGalleries = async () => {
+      const { data, error } = await supabase
+        .from("galleries")
+        .select("id, client, type, date, code, photos, status, created_at")
+        .order("created_at", { ascending: false });
 
-    // Pour l'instant, la galerie est ajoutée seulement dans l'interface.
-    // Quand le backend sera prêt, cette partie enverra les données à la base.
-    const nextGalleryList = [
-      {
+      if (error) {
+        setFeedback("Impossible de charger les galeries depuis Supabase.");
+        setGalleryList(galleries);
+      } else {
+        setGalleryList(data ?? []);
+      }
+
+      setIsLoading(false);
+    };
+
+    loadGalleries();
+  }, []);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setFeedback("");
+    const newGalleryId = Date.now();
+
+    const { data, error } = await supabase
+      .from("galleries")
+      .insert({
+        id: newGalleryId,
         client: form.client,
         type: form.type,
         date: form.date,
         code: generatedCode,
-        photos: "0",
+        photos: 0,
         status: "Brouillon",
-      },
-      ...galleryList,
-    ];
+      })
+      .select("id, client, type, date, code, photos, status, created_at")
+      .single();
 
-    window.localStorage.setItem(
-      galleriesStorageKey,
-      JSON.stringify(nextGalleryList),
-    );
-    setGalleryList(nextGalleryList);
+    if (error) {
+      setFeedback("La galerie n’a pas pu être enregistrée dans Supabase.");
+      setIsSaving(false);
+      return;
+    }
 
+    setGalleryList((currentGalleries) => [data, ...currentGalleries]);
+    setFeedback("Galerie enregistrée dans Supabase.");
     setForm(initialForm);
     setIsFormOpen(false);
+    setIsSaving(false);
   };
 
   return (
@@ -141,6 +171,12 @@ export default function GaleriesClient() {
                 </button>
               </header>
 
+              {feedback && (
+                <p className="mt-4 rounded-2xl border border-[#e8def5] bg-white px-4 py-3 text-sm font-bold text-[#6f3de2]">
+                  {feedback}
+                </p>
+              )}
+
               {isFormOpen && (
                 <section className="mt-6 rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                   <div className="max-w-4xl">
@@ -167,7 +203,7 @@ export default function GaleriesClient() {
                         onChange={(event) =>
                           setForm({ ...form, client: event.target.value })
                         }
-                        placeholder="Ex : Tatiana N'guessan"
+                        placeholder="Nom du client"
                         required
                         type="text"
                         value={form.client}
@@ -218,13 +254,15 @@ export default function GaleriesClient() {
 
                     <div className="flex flex-col gap-3 pt-2 sm:flex-row lg:col-span-2">
                       <button
-                        className="rounded-full bg-[#6f3de2] px-5 py-3 text-sm font-bold text-white"
+                        className="rounded-full bg-[#6f3de2] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={isSaving}
                         type="submit"
                       >
-                        Enregistrer la galerie
+                        {isSaving ? "Enregistrement..." : "Enregistrer la galerie"}
                       </button>
                       <button
-                        className="rounded-full border border-[#e8def5] px-5 py-3 text-sm font-bold text-[#6f3de2]"
+                        className="rounded-full border border-[#e8def5] px-5 py-3 text-sm font-bold text-[#6f3de2] disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={isSaving}
                         onClick={() => {
                           setForm(initialForm);
                           setIsFormOpen(false);
@@ -256,7 +294,19 @@ export default function GaleriesClient() {
                 </div>
 
                 <div className="grid divide-y divide-[#eee6f7]">
-                  {filteredGalleries.map((gallery) => (
+                  {isLoading && (
+                    <p className="p-5 text-sm font-bold text-[#766985]">
+                      Chargement des galeries...
+                    </p>
+                  )}
+
+                  {!isLoading && filteredGalleries.length === 0 && (
+                    <p className="p-5 text-sm font-bold text-[#766985]">
+                      Aucune galerie trouvée.
+                    </p>
+                  )}
+
+                  {!isLoading && filteredGalleries.map((gallery) => (
                     <article
                       className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"
                       key={gallery.code}
@@ -278,9 +328,9 @@ export default function GaleriesClient() {
                       <p className="text-sm font-black">{gallery.photos} photos</p>
                       <div className="flex items-center gap-3">
                         <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
-                            statusClasses[gallery.status]
-                          }`}
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusClass(
+                            gallery.status,
+                          )}`}
                         >
                           {gallery.status}
                         </span>

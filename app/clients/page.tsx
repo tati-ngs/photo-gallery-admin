@@ -73,14 +73,14 @@ export default function ClientsPage() {
                   </p>
                   <p className="mt-3 text-4xl font-black">{galleries.length}</p>
                   <p className="mt-2 text-sm font-medium text-white/75">
-                    clients visibles dans la maquette.
+                    clients enregistrés.
                   </p>
                 </article>
                 <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                   <p className="text-xs font-black uppercase tracking-wide text-[#8a7a9f]">
                     Galeries prêtes
                   </p>
-                  <p className="mt-3 text-4xl font-black">1</p>
+                  <p className="mt-3 text-4xl font-black">0</p>
                   <p className="mt-2 text-sm font-bold text-[#6f3de2]">
                     à envoyer au client
                   </p>
@@ -89,9 +89,9 @@ export default function ClientsPage() {
                   <p className="text-xs font-black uppercase tracking-wide text-[#8a7a9f]">
                     Livrées
                   </p>
-                  <p className="mt-3 text-4xl font-black">1</p>
+                  <p className="mt-3 text-4xl font-black">0</p>
                   <p className="mt-2 text-sm font-bold text-[#6f3de2]">
-                    galerie terminée
+                    galeries terminées
                   </p>
                 </article>
               </section>
@@ -112,6 +112,12 @@ export default function ClientsPage() {
                 </div>
 
                 <div className="grid divide-y divide-[#eee6f7]">
+                  {galleries.length === 0 && (
+                    <p className="p-5 text-sm font-bold text-[#766985]">
+                      Aucun client enregistré pour le moment.
+                    </p>
+                  )}
+
                   {galleries.map((gallery) => (
                     <article
                       className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"

@@ -4,32 +4,32 @@ import { galleries, statusClasses } from "@/data/galleries";
 const statCards = [
   {
     label: "Galeries actives",
-    value: "12",
-    percent: "30%",
-    detail: "+3 ce mois",
+    value: "0",
+    percent: "0%",
+    detail: "aucune galerie",
     color: "from-[#6f3de2] to-[#9c6cff]",
   },
   {
     label: "Photos livrées",
-    value: "1 284",
-    percent: "75%",
-    detail: "92 cette semaine",
+    value: "0",
+    percent: "0%",
+    detail: "aucune photo livrée",
     color: "from-[#1f1530] to-[#6f3de2]",
   },
   {
     label: "Demandes",
-    value: "05",
-    percent: "55%",
-    detail: "à traiter",
+    value: "0",
+    percent: "0%",
+    detail: "aucune demande",
     color: "from-[#1f1530] to-[#e65cff]",
   },
 ];
 
 const chartBars = [
-  { label: "Cérémonie", width: "w-[88%]", color: "bg-[#6f3de2]" },
-  { label: "Shooting", width: "w-[72%]", color: "bg-[#e65cff]" },
-  { label: "Marque", width: "w-[56%]", color: "bg-[#f5cf57]" },
-  { label: "Conférence", width: "w-[94%]", color: "bg-[#5fd080]" },
+  { label: "Cérémonie", width: "w-[0%]", color: "bg-[#6f3de2]" },
+  { label: "Shooting", width: "w-[0%]", color: "bg-[#e65cff]" },
+  { label: "Marque", width: "w-[0%]", color: "bg-[#f5cf57]" },
+  { label: "Conférence", width: "w-[0%]", color: "bg-[#5fd080]" },
 ];
 
 const sidebarLinks = [
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
                 </p>
                 <p className="mt-3 text-sm font-bold">Admin en construction</p>
                 <p className="mt-2 text-xs leading-5 text-white/45">
-                  Les données seront reliées au backend plus tard.
+                  Les données viennent de Supabase.
                 </p>
               </div>
             </aside>
@@ -156,7 +156,7 @@ export default function AdminDashboard() {
                   <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                     <h2 className="text-lg font-black">À valider</h2>
                     <p className="mt-2 text-sm leading-6 text-[#766985]">
-                      5 demandes sont en attente avant création ou livraison.
+                      Aucune demande n’est enregistrée pour le moment.
                     </p>
                     <Link
                       className="mt-5 inline-flex rounded-full bg-[#f1e9ff] px-4 py-2 text-xs font-black text-[#6f3de2]"
@@ -168,9 +168,9 @@ export default function AdminDashboard() {
 
                   <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                     <h2 className="text-lg font-black">Dernier ajout</h2>
-                    <p className="mt-3 text-2xl font-black">Brand Studio</p>
+                    <p className="mt-3 text-2xl font-black">Aucune galerie</p>
                     <p className="mt-1 text-sm text-[#766985]">
-                      86 photos ajoutées dans Marque & entreprise.
+                      Les derniers ajouts apparaîtront ici après création.
                     </p>
                   </article>
                 </div>
@@ -205,9 +205,9 @@ export default function AdminDashboard() {
                 <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-black">Ce mois</h2>
                   <div className="mt-6 grid place-items-center">
-                    <div className="grid size-36 place-items-center rounded-full bg-[conic-gradient(#6f3de2_0_70%,#f0e9fb_70%_100%)] p-4">
+                    <div className="grid size-36 place-items-center rounded-full bg-[#f0e9fb] p-4">
                       <div className="grid size-24 place-items-center rounded-full bg-white text-center">
-                        <p className="text-2xl font-black">70%</p>
+                        <p className="text-2xl font-black">0%</p>
                         <p className="text-xs font-bold text-[#766985]">
                           livré
                         </p>
@@ -215,7 +215,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <p className="mt-5 text-center text-sm leading-6 text-[#766985]">
-                    La majorité des galeries prévues sont déjà prêtes.
+                    Les statistiques se rempliront avec les vraies galeries.
                   </p>
                 </article>
               </section>
@@ -237,6 +237,12 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="grid divide-y divide-[#eee6f7]">
+                  {galleries.length === 0 && (
+                    <p className="p-5 text-sm font-bold text-[#766985]">
+                      Aucune galerie récente pour le moment.
+                    </p>
+                  )}
+
                   {galleries.map((gallery) => (
                     <article
                       className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"
