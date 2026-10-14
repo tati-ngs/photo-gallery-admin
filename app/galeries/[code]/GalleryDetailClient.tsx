@@ -3,7 +3,6 @@
 import Link from "next/link";
 import {
   ChangeEvent,
-  DragEvent,
   useEffect,
   useMemo,
   useRef,
@@ -260,20 +259,6 @@ export default function GalleryDetailClient({
     input.value = "";
   };
 
-  const handleDrop = async (event: DragEvent<HTMLLabelElement>) => {
-    event.preventDefault();
-
-    if (isUploading) {
-      return;
-    }
-
-    const droppedImages = Array.from(event.dataTransfer.files).filter((file) =>
-      file.type.startsWith("image/"),
-    );
-
-    await uploadFiles(droppedImages);
-  };
-
   const handleDeletePhoto = async (photoToDelete: GalleryPhoto) => {
     const { error } = await supabase.storage
       .from(photosBucket)
@@ -470,31 +455,6 @@ export default function GalleryDetailClient({
                       {photoCount} photo{photoCount > 1 ? "s" : ""}
                     </span>
                   </div>
-
-                  <label
-                    className={`mt-5 grid cursor-pointer place-items-center border border-dashed border-[#d9c8f1] bg-[#fbf8ff] p-5 text-center transition ${
-                      isUploading
-                        ? "cursor-not-allowed opacity-60"
-                        : "hover:border-[#6f3de2] hover:bg-[#f5efff]"
-                    }`}
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={handleDrop}
-                  >
-                    <input
-                      accept="image/*"
-                      className="hidden"
-                      disabled={!canManagePhotos || isUploading}
-                      multiple
-                      onChange={handleUpload}
-                      type="file"
-                    />
-                    <span className="text-sm font-black text-[#6f3de2]">
-                      Choisir plusieurs photos
-                    </span>
-                    <span className="mt-1 text-xs font-bold text-[#8a7a9f]">
-                      ou déposer les images ici
-                    </span>
-                  </label>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {isLoadingPhotos && (
