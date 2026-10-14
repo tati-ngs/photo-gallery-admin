@@ -1,36 +1,21 @@
 import Link from "next/link";
-import { galleries, statusClasses } from "@/data/galleries";
+import { statusClasses } from "@/data/galleries";
+import { supabase } from "@/lib/supabase";
 
-const statCards = [
-  {
-    label: "Galeries actives",
-    value: "0",
-    percent: "0%",
-    detail: "aucune galerie",
-    color: "from-[#6f3de2] to-[#9c6cff]",
-  },
-  {
-    label: "Photos livrées",
-    value: "0",
-    percent: "0%",
-    detail: "aucune photo livrée",
-    color: "from-[#1f1530] to-[#6f3de2]",
-  },
-  {
-    label: "Demandes",
-    value: "0",
-    percent: "0%",
-    detail: "aucune demande",
-    color: "from-[#1f1530] to-[#e65cff]",
-  },
-];
+export const dynamic = "force-dynamic";
 
-const chartBars = [
-  { label: "Cérémonie", width: "w-[0%]", color: "bg-[#6f3de2]" },
-  { label: "Shooting", width: "w-[0%]", color: "bg-[#e65cff]" },
-  { label: "Marque", width: "w-[0%]", color: "bg-[#f5cf57]" },
-  { label: "Conférence", width: "w-[0%]", color: "bg-[#5fd080]" },
-];
+type DashboardGallery = {
+  client: string;
+  code: string;
+  type: string;
+  date: string;
+  photos: number;
+  status: string;
+  created_at?: string;
+};
+
+const getStatusClass = (status: string) =>
+  statusClasses[status as keyof typeof statusClasses] ?? statusClasses.Brouillon;
 
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", active: true },
@@ -40,7 +25,102 @@ const sidebarLinks = [
   { label: "Réglages", href: "/dashboard", active: false },
 ];
 
-export default function AdminDashboard() {
+export default async function AdminDashboard() {
+  const { data } = await supabase
+    .from("galleries")
+    .select("client, code, type, date, photos, status, created_at")
+    .order("created_at", { ascending: false });
+  const galleries = (data as DashboardGallery[] | null) ?? [];
+  const totalGalleries = galleries.length;
+  const totalPhotos = galleries.reduce(
+    (sum, gallery) => sum + Number(gallery.photos || 0),
+    0,
+  );
+  const totalClients = new Set(
+    galleries.map((gallery) => gallery.client.toLowerCase().trim()),
+  ).size;
+  const readyGalleries = galleries.filter(
+    (gallery) => gallery.status === "Prête",
+  ).length;
+  const deliveredGalleries = galleries.filter(
+    (gallery) => gallery.status === "Livrée",
+  ).length;
+  const deliveryPercent =
+    totalGalleries === 0
+      ? 0
+      : Math.round((deliveredGalleries / totalGalleries) * 100);
+  const latestGallery = galleries[0];
+  const typeCounts = ["Cérémonie", "Shooting", "Marque", "Conférence"].map(
+    (type) => ({
+      label: type,
+      count: galleries.filter((gallery) => gallery.type.includes(type)).length,
+    }),
+  );
+  const maxTypeCount = Math.max(...typeCounts.map((item) => item.count), 1);
+  const chartBars = typeCounts.map((item, index) => ({
+    ...item,
+    width: `${Math.round((item.count / maxTypeCount) * 100)}%`,
+    color: ["#6f3de2", "#e65cff", "#f5cf57", "#5fd080"][index],
+  }));
+  const statCards = [
+    {
+      label: "Galeries actives",
+      value: String(totalGalleries),
+      percent: totalGalleries === 0 ? "0%" : "100%",
+      detail:
+        totalGalleries === 0
+          ? "aucune galerie"
+          : `${totalGalleries} galerie${totalGalleries > 1 ? "s" : ""}`,
+      color: "from-[#6f3de2] to-[#9c6cff]",
+    },
+    {
+      label: "Photos ajoutées",
+      value: String(totalPhotos),
+      percent: totalPhotos === 0 ? "0%" : "100%",
+      detail:
+        totalPhotos === 0
+          ? "aucune photo ajoutée"
+          : `${totalPhotos} photo${totalPhotos > 1 ? "s" : ""}`,
+      color: "from-[#1f1530] to-[#6f3de2]",
+    },
+    {
+      label: "Galeries prêtes",
+      value: String(readyGalleries),
+      percent: totalGalleries === 0 ? "0%" : `${Math.round((readyGalleries / totalGalleries) * 100)}%`,
+      detail:
+        readyGalleries === 0
+          ? "aucune galerie prête"
+          : `${readyGalleries} prête${readyGalleries > 1 ? "s" : ""}`,
+      color: "from-[#1f1530] to-[#e65cff]",
+    },
+  ];
+  const totalCards = [
+    {
+      label: "Total clients",
+      value: String(totalClients),
+      detail:
+        totalClients === 0
+          ? "aucun client"
+          : `${totalClients} client${totalClients > 1 ? "s" : ""} unique${totalClients > 1 ? "s" : ""}`,
+    },
+    {
+      label: "Total galeries",
+      value: String(totalGalleries),
+      detail:
+        totalGalleries === 0
+          ? "aucune galerie"
+          : `${totalGalleries} galerie${totalGalleries > 1 ? "s" : ""} créée${totalGalleries > 1 ? "s" : ""}`,
+    },
+    {
+      label: "Total photos",
+      value: String(totalPhotos),
+      detail:
+        totalPhotos === 0
+          ? "aucune photo"
+          : `${totalPhotos} photo${totalPhotos > 1 ? "s" : ""} ajoutée${totalPhotos > 1 ? "s" : ""}`,
+    },
+  ];
+
   return (
     <main className="min-h-screen bg-[#f7f5fb] text-[#191025]">
       <section className="min-h-screen">
@@ -72,16 +152,6 @@ export default function AdminDashboard() {
                   </Link>
                 ))}
               </nav>
-
-              <div className="mt-12 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-white/40">
-                  Statut
-                </p>
-                <p className="mt-3 text-sm font-bold">Admin en construction</p>
-                <p className="mt-2 text-xs leading-5 text-white/45">
-                  Les données viennent de Supabase.
-                </p>
-              </div>
             </aside>
 
             <section className="min-w-0 p-5 sm:p-7">
@@ -94,7 +164,7 @@ export default function AdminDashboard() {
                     Vue rapide sur PS23 Photography.
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#766985]">
-                    Suivez les galeries clients, les photos livrées et les
+                    Suivez les galeries clients, les photos ajoutées et les
                     prochaines actions depuis un espace simple.
                   </p>
                 </div>
@@ -151,12 +221,31 @@ export default function AdminDashboard() {
                 ))}
               </section>
 
+              <section className="mt-4 grid gap-4 md:grid-cols-3">
+                {totalCards.map((card) => (
+                  <article
+                    className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm"
+                    key={card.label}
+                  >
+                    <p className="text-xs font-black uppercase tracking-wide text-[#8a7a9f]">
+                      {card.label}
+                    </p>
+                    <p className="mt-3 text-3xl font-black">{card.value}</p>
+                    <p className="mt-1 text-xs font-bold text-[#6f3de2]">
+                      {card.detail}
+                    </p>
+                  </article>
+                ))}
+              </section>
+
               <section className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.15fr_0.85fr]">
                 <div className="grid gap-5">
                   <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                     <h2 className="text-lg font-black">À valider</h2>
                     <p className="mt-2 text-sm leading-6 text-[#766985]">
-                      Aucune demande n’est enregistrée pour le moment.
+                      {readyGalleries === 0
+                        ? "Aucune galerie n’est prête pour le moment."
+                        : `${readyGalleries} galerie${readyGalleries > 1 ? "s" : ""} prête${readyGalleries > 1 ? "s" : ""} à traiter.`}
                     </p>
                     <Link
                       className="mt-5 inline-flex rounded-full bg-[#f1e9ff] px-4 py-2 text-xs font-black text-[#6f3de2]"
@@ -168,9 +257,13 @@ export default function AdminDashboard() {
 
                   <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                     <h2 className="text-lg font-black">Dernier ajout</h2>
-                    <p className="mt-3 text-2xl font-black">Aucune galerie</p>
+                    <p className="mt-3 text-2xl font-black">
+                      {latestGallery?.client ?? "Aucune galerie"}
+                    </p>
                     <p className="mt-1 text-sm text-[#766985]">
-                      Les derniers ajouts apparaîtront ici après création.
+                      {latestGallery
+                        ? `${latestGallery.photos} photo${latestGallery.photos > 1 ? "s" : ""} ajoutée${latestGallery.photos > 1 ? "s" : ""} dans ${latestGallery.type}.`
+                        : "Les derniers ajouts apparaîtront ici après création."}
                     </p>
                   </article>
                 </div>
@@ -193,9 +286,13 @@ export default function AdminDashboard() {
                       <div key={bar.label}>
                         <div className="mb-2 flex justify-between text-xs font-bold text-[#766985]">
                           <span>{bar.label}</span>
+                          <span>{bar.count}</span>
                         </div>
                         <div className="h-3 overflow-hidden rounded-full bg-[#eee8f7]">
-                          <div className={`h-full rounded-full ${bar.width} ${bar.color}`} />
+                          <div
+                            className="h-full rounded-full"
+                            style={{ backgroundColor: bar.color, width: bar.width }}
+                          />
                         </div>
                       </div>
                     ))}
@@ -205,9 +302,14 @@ export default function AdminDashboard() {
                 <article className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                   <h2 className="text-lg font-black">Ce mois</h2>
                   <div className="mt-6 grid place-items-center">
-                    <div className="grid size-36 place-items-center rounded-full bg-[#f0e9fb] p-4">
+                    <div
+                      className="grid size-36 place-items-center rounded-full p-4"
+                      style={{
+                        background: `conic-gradient(#6f3de2 0 ${deliveryPercent}%, #f0e9fb ${deliveryPercent}% 100%)`,
+                      }}
+                    >
                       <div className="grid size-24 place-items-center rounded-full bg-white text-center">
-                        <p className="text-2xl font-black">0%</p>
+                        <p className="text-2xl font-black">{deliveryPercent}%</p>
                         <p className="text-xs font-bold text-[#766985]">
                           livré
                         </p>
@@ -215,7 +317,9 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <p className="mt-5 text-center text-sm leading-6 text-[#766985]">
-                    Les statistiques se rempliront avec les vraies galeries.
+                    {totalGalleries === 0
+                      ? "Les statistiques se rempliront avec les vraies galeries."
+                      : `${deliveredGalleries} galerie${deliveredGalleries > 1 ? "s" : ""} livrée${deliveredGalleries > 1 ? "s" : ""} sur ${totalGalleries}.`}
                   </p>
                 </article>
               </section>
@@ -263,7 +367,7 @@ export default function AdminDashboard() {
                       <div className="flex items-center gap-3">
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
-                            statusClasses[gallery.status]
+                            getStatusClass(gallery.status)
                           }`}
                         >
                           {gallery.status}
