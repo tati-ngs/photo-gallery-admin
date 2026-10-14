@@ -5,7 +5,9 @@ import { supabase } from "@/lib/supabase";
 export const dynamic = "force-dynamic";
 
 type DashboardGallery = {
+  id?: number;
   client: string;
+  contact?: string;
   code: string;
   type: string;
   date: string;
@@ -16,6 +18,19 @@ type DashboardGallery = {
 
 const getStatusClass = (status: string) =>
   statusClasses[status as keyof typeof statusClasses] ?? statusClasses.Brouillon;
+
+const normalizeClientIdentity = (value: string) =>
+  value.toLowerCase().replace(/\s+/g, "").trim();
+
+const getClientIdentity = (gallery: DashboardGallery) =>
+  gallery.contact
+    ? `contact:${normalizeClientIdentity(gallery.contact)}`
+    : `name:${normalizeClientIdentity(gallery.client)}`;
+
+const getGalleryKey = (gallery: DashboardGallery) =>
+  gallery.id
+    ? String(gallery.id)
+    : `${gallery.code}-${gallery.date}-${gallery.created_at ?? ""}`;
 
 const sidebarLinks = [
   { label: "Dashboard", href: "/dashboard", active: true },
@@ -28,7 +43,7 @@ const sidebarLinks = [
 export default async function AdminDashboard() {
   const { data } = await supabase
     .from("galleries")
-    .select("client, code, type, date, photos, status, created_at")
+    .select("id, client, contact, code, type, date, photos, status, created_at")
     .order("created_at", { ascending: false });
   const galleries = (data as DashboardGallery[] | null) ?? [];
   const totalGalleries = galleries.length;
@@ -37,7 +52,7 @@ export default async function AdminDashboard() {
     0,
   );
   const totalClients = new Set(
-    galleries.map((gallery) => gallery.client.toLowerCase().trim()),
+    galleries.map((gallery) => getClientIdentity(gallery)),
   ).size;
   const readyGalleries = galleries.filter(
     (gallery) => gallery.status === "Prête",
@@ -334,7 +349,7 @@ export default async function AdminDashboard() {
                   {galleries.map((gallery) => (
                     <article
                       className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"
-                      key={gallery.code}
+                      key={getGalleryKey(gallery)}
                     >
                       <div>
                         <p className="font-black">{gallery.client}</p>

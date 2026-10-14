@@ -16,6 +16,7 @@ const galleryStatuses = ["Brouillon", "Prête", "Livrée"];
 export type GalleryDetails = {
   client: string;
   contact?: string;
+  photographer_message?: string;
   code: string;
   type: string;
   date: string;
@@ -51,6 +52,29 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/[^a-zA-Z0-9.]+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
+
+const getGalleryAccessMessage = (clientName: string, galleryCode: string) =>
+  `Bonjour ${clientName}, votre galerie PS23 Photography est prête. Code galerie : ${galleryCode}. Rendez-vous dans l’espace client pour consulter vos photos.`;
+
+const getWhatsAppUrl = (contact: string, message: string) => {
+  const trimmedContact = contact.trim();
+  const encodedMessage = encodeURIComponent(message);
+  const normalizedPhone = trimmedContact.replace(/[^\d+]/g, "");
+
+  if (normalizedPhone.startsWith("+")) {
+    return `https://wa.me/${normalizedPhone.replace("+", "")}?text=${encodedMessage}`;
+  }
+
+  if (normalizedPhone.startsWith("00")) {
+    return `https://wa.me/${normalizedPhone.slice(2)}?text=${encodedMessage}`;
+  }
+
+  if (normalizedPhone.startsWith("0")) {
+    return `https://wa.me/225${normalizedPhone}?text=${encodedMessage}`;
+  }
+
+  return `https://wa.me/${normalizedPhone}?text=${encodedMessage}`;
+};
 
 function GalleryImage({
   alt,
@@ -323,6 +347,34 @@ export default function GalleryDetailClient({
     setFeedback(`Statut mis à jour : ${nextStatus}.`);
   };
 
+  const handleSendCode = async () => {
+    const contact = galleryDetails.contact?.trim() ?? "";
+    const message = getGalleryAccessMessage(galleryDetails.client, galleryCode);
+
+    try {
+      await navigator.clipboard.writeText(message);
+    } catch {
+      // Clipboard can fail in some browser contexts; sending still works below.
+    }
+
+    if (!contact) {
+      setFeedback("Message copié. Ajoute un contact client pour l’envoyer directement.");
+      return;
+    }
+
+    if (contact.includes("@")) {
+      const subject = encodeURIComponent("Votre code galerie PS23 Photography");
+      const body = encodeURIComponent(message);
+
+      window.location.href = `mailto:${contact}?subject=${subject}&body=${body}`;
+      setFeedback("Email préparé avec le code galerie.");
+      return;
+    }
+
+    window.open(getWhatsAppUrl(contact, message), "_blank", "noopener,noreferrer");
+    setFeedback("Message WhatsApp préparé avec le code galerie.");
+  };
+
   return (
     <main className="min-h-screen bg-[#f7f5fb] text-[#191025]">
       <section className="min-h-screen">
@@ -399,6 +451,7 @@ export default function GalleryDetailClient({
                   </button>
                   <button
                     className="rounded-full border border-white/25 bg-white/10 px-5 py-3 text-sm font-black text-white"
+                    onClick={handleSendCode}
                     type="button"
                   >
                     Envoyer le code
@@ -557,6 +610,16 @@ export default function GalleryDetailClient({
                             {galleryDetails.contact}
                           </span>
                         </p>
+                      )}
+                      {galleryDetails.photographer_message && (
+                        <div className="rounded-2xl bg-[#fbf8ff] p-4">
+                          <p className="text-xs font-black uppercase text-[#6f3de2]">
+                            Message
+                          </p>
+                          <p className="mt-2 leading-6 text-[#766985]">
+                            {galleryDetails.photographer_message}
+                          </p>
+                        </div>
                       )}
                       <p className="flex justify-between gap-4">
                         <span className="text-[#766985]">Statut</span>

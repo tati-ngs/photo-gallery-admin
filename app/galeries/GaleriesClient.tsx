@@ -18,6 +18,7 @@ type GalleryRow = Omit<Gallery, "photos" | "status"> & {
 const initialForm = {
   client: "",
   contact: "",
+  photographerMessage: "",
   type: "",
   date: "",
 };
@@ -25,18 +26,34 @@ const initialForm = {
 const minimumCreationDelay = 5000;
 const photosBucket = "gallery-photos";
 
-const generateGalleryCode = (clientName: string, galleryNumber: number) => {
-  const readableName = clientName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .toUpperCase();
+const accessCodeCharacters = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-  const formattedNumber = String(galleryNumber).padStart(3, "0");
+const getRandomCodePart = (length: number) => {
+  const randomValues = new Uint32Array(length);
+  crypto.getRandomValues(randomValues);
 
-  return `PS23-${readableName || "CLIENT"}-${formattedNumber}`;
+  return Array.from(randomValues)
+    .map((value) => accessCodeCharacters[value % accessCodeCharacters.length])
+    .join("");
 };
+
+const generatePrivateGalleryCode = (galleryList: GalleryRow[]) => {
+  const existingCodes = new Set(galleryList.map((gallery) => gallery.code));
+  let code = "";
+
+  do {
+    code = `PS23-${getRandomCodePart(4)}-${getRandomCodePart(4)}`;
+  } while (existingCodes.has(code));
+
+  return code;
+};
+
+const isDuplicateCodeError = (errorCode?: string) => errorCode === "23505";
+
+const getGalleryKey = (gallery: GalleryRow) =>
+  gallery.id
+    ? String(gallery.id)
+    : `${gallery.code}-${gallery.date}-${gallery.created_at ?? ""}`;
 
 const getStatusClass = (status: string) =>
   statusClasses[status as GalleryStatus] ?? statusClasses.Brouillon;
@@ -53,6 +70,7 @@ export default function GaleriesClient() {
   const [galleryList, setGalleryList] = useState<GalleryRow[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
+  const [generatedCode, setGeneratedCode] = useState("");
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,7 +78,6 @@ export default function GaleriesClient() {
   const [feedback, setFeedback] = useState("");
   const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("idle");
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const generatedCode = generateGalleryCode(form.client, galleryList.length + 1);
   const filteredGalleries = galleryList.filter((gallery) => {
     const searchableText = `${gallery.client} ${gallery.contact ?? ""} ${gallery.code} ${gallery.type}`
       .toLowerCase()
@@ -73,7 +90,7 @@ export default function GaleriesClient() {
     const loadGalleries = async () => {
       const { data, error } = await supabase
         .from("galleries")
-        .select("id, client, contact, type, date, code, photos, status, created_at")
+        .select("id, client, contact, photographer_message, type, date, code, photos, status, created_at")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -119,6 +136,39 @@ export default function GaleriesClient() {
     [],
   );
 
+  const openGalleryForm = () => {
+    setGeneratedCode(generatePrivateGalleryCode(galleryList));
+    setIsFormOpen(true);
+  };
+
+  const closeGalleryForm = () => {
+    setForm(initialForm);
+    setGeneratedCode("");
+    setIsFormOpen(false);
+  };
+
+  const reserveGalleryCode = async (preferredCode: string) => {
+    let codeToReserve = preferredCode;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const { error } = await supabase
+        .from("used_gallery_codes")
+        .insert({ code: codeToReserve });
+
+      if (!error) {
+        return codeToReserve;
+      }
+
+      if (!isDuplicateCodeError(error.code)) {
+        throw error;
+      }
+
+      codeToReserve = generatePrivateGalleryCode(galleryList);
+    }
+
+    throw new Error("Impossible de réserver un code galerie unique.");
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSaving(true);
@@ -128,36 +178,50 @@ export default function GaleriesClient() {
       setTimeout(resolve, minimumCreationDelay),
     );
 
-    const creationRequest = supabase
-      .from("galleries")
-      .insert({
-        id: newGalleryId,
-        client: form.client,
-        contact: form.contact,
-        type: form.type,
-        date: form.date,
-        code: generatedCode,
-        photos: 0,
-        status: "Brouillon",
-      })
-      .select("id, client, contact, type, date, code, photos, status, created_at")
-      .single();
-    const [{ data, error }] = await Promise.all([creationRequest, minimumDelay]);
+    try {
+      const codeToSave = await reserveGalleryCode(
+        generatedCode || generatePrivateGalleryCode(galleryList),
+      );
+      setGeneratedCode(codeToSave);
 
-    if (error) {
+      const creationRequest = supabase
+        .from("galleries")
+        .insert({
+          id: newGalleryId,
+          client: form.client,
+          contact: form.contact,
+          photographer_message: form.photographerMessage.trim(),
+          type: form.type,
+          date: form.date,
+          code: codeToSave,
+          photos: 0,
+          status: "Brouillon",
+        })
+        .select("id, client, contact, photographer_message, type, date, code, photos, status, created_at")
+        .single();
+      const [{ data, error }] = await Promise.all([creationRequest, minimumDelay]);
+
+      if (error) {
+        showFeedback(
+          "La galerie n’a pas pu être créée. Réessaie dans un instant.",
+          "error",
+        );
+        setIsSaving(false);
+        return;
+      }
+
+      setGalleryList((currentGalleries) => [data, ...currentGalleries]);
+      showFeedback("Galerie créée avec succès.", "success", true);
+      closeGalleryForm();
+      setIsSaving(false);
+    } catch {
+      await minimumDelay;
       showFeedback(
-        "La galerie n’a pas pu être créée. Réessaie dans un instant.",
+        "La galerie n’a pas pu réserver un code unique. Vérifie la table d’historique des codes.",
         "error",
       );
       setIsSaving(false);
-      return;
     }
-
-    setGalleryList((currentGalleries) => [data, ...currentGalleries]);
-    showFeedback("Galerie créée avec succès.", "success", true);
-    setForm(initialForm);
-    setIsFormOpen(false);
-    setIsSaving(false);
   };
 
   const handleDeleteGallery = async (gallery: GalleryRow) => {
@@ -204,10 +268,10 @@ export default function GaleriesClient() {
       }
     }
 
-    const { error: deleteError } = await supabase
-      .from("galleries")
-      .delete()
-      .eq("code", gallery.code);
+    const deleteRequest = supabase.from("galleries").delete();
+    const { error: deleteError } = gallery.id
+      ? await deleteRequest.eq("id", gallery.id)
+      : await deleteRequest.eq("code", gallery.code);
 
     if (deleteError) {
       showFeedback(
@@ -275,7 +339,13 @@ export default function GaleriesClient() {
 
                 <button
                   className="w-fit rounded-full bg-[#6f3de2] px-5 py-3 text-sm font-bold text-white shadow-lg shadow-[#6f3de2]/25"
-                  onClick={() => setIsFormOpen((currentValue) => !currentValue)}
+                  onClick={() => {
+                    if (isFormOpen) {
+                      closeGalleryForm();
+                    } else {
+                      openGalleryForm();
+                    }
+                  }}
                   type="button"
                 >
                   {isFormOpen ? "Fermer" : "Créer une galerie"}
@@ -357,16 +427,20 @@ export default function GaleriesClient() {
                     </label>
 
                     <label className="grid gap-2 text-sm font-bold">
-                      Contact du client
+                      Contact du client *
                       <input
                         className="rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 py-3 font-medium outline-none focus:border-[#6f3de2]"
                         onChange={(event) =>
                           setForm({ ...form, contact: event.target.value })
                         }
-                        placeholder="Téléphone ou email"
+                        placeholder="Ex : +2250700000000 ou email"
+                        required
                         type="text"
                         value={form.contact}
                       />
+                      <span className="text-xs font-medium text-[#8a7a9f]">
+                        Pour WhatsApp direct, utilisez un numéro avec indicatif.
+                      </span>
                     </label>
 
                     <label className="grid gap-2 text-sm font-bold">
@@ -389,6 +463,21 @@ export default function GaleriesClient() {
                       </div>
                     </label>
 
+                    <label className="grid gap-2 text-sm font-bold lg:col-span-2">
+                      Petit message du photographe
+                      <textarea
+                        className="min-h-28 resize-none rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 py-3 font-medium outline-none focus:border-[#6f3de2]"
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            photographerMessage: event.target.value,
+                          })
+                        }
+                        placeholder="Ex : Merci pour votre confiance. J’espère que ces souvenirs vous plairont."
+                        value={form.photographerMessage}
+                      />
+                    </label>
+
                     <div className="flex flex-col gap-3 pt-2 sm:flex-row lg:col-span-2">
                       <button
                         className="rounded-full bg-[#6f3de2] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
@@ -401,8 +490,7 @@ export default function GaleriesClient() {
                         className="rounded-full border border-[#e8def5] px-5 py-3 text-sm font-bold text-[#6f3de2] disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={isSaving}
                         onClick={() => {
-                          setForm(initialForm);
-                          setIsFormOpen(false);
+                          closeGalleryForm();
                         }}
                         type="button"
                       >
@@ -446,7 +534,7 @@ export default function GaleriesClient() {
                   {!isLoading && filteredGalleries.map((gallery) => (
                     <article
                       className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"
-                      key={gallery.code}
+                      key={getGalleryKey(gallery)}
                     >
                       <div>
                         <p className="font-black">{gallery.client}</p>

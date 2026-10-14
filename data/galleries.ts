@@ -3,6 +3,7 @@ export type GalleryStatus = "Brouillon" | "Prête" | "Livrée";
 export type Gallery = {
   client: string;
   contact?: string;
+  photographer_message?: string;
   code: string;
   type: string;
   date: string;

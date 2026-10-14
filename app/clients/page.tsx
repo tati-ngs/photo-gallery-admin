@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function ClientsPage() {
   const { data } = await supabase
     .from("galleries")
-    .select("client, contact, code, type, date, photos, status, created_at")
+    .select("id, client, contact, code, type, date, photos, status, created_at")
     .order("created_at", { ascending: false });
 
   return (

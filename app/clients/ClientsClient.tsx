@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export type ClientGallery = {
+  id?: number;
   client: string;
   contact?: string;
   code: string;
@@ -17,6 +18,14 @@ export type ClientGallery = {
 type ClientsClientProps = {
   galleries: ClientGallery[];
   statusClasses: Record<"Brouillon" | "Prête" | "Livrée", string>;
+};
+
+type ClientGroup = {
+  key: string;
+  name: string;
+  contact?: string;
+  galleries: ClientGallery[];
+  totalPhotos: number;
 };
 
 const sidebarLinks = [
@@ -34,6 +43,45 @@ const getStatusClass = (
   statusClasses[status as keyof ClientsClientProps["statusClasses"]] ??
   statusClasses.Brouillon;
 
+const normalizeClientIdentity = (value: string) =>
+  value.toLowerCase().replace(/\s+/g, "").trim();
+
+const getClientGroupKey = (gallery: ClientGallery) =>
+  gallery.contact
+    ? `contact:${normalizeClientIdentity(gallery.contact)}`
+    : `name:${normalizeClientIdentity(gallery.client)}`;
+
+const getGalleryKey = (gallery: ClientGallery) =>
+  gallery.id
+    ? String(gallery.id)
+    : `${gallery.code}-${gallery.date}-${gallery.created_at ?? ""}`;
+
+const getClientGroups = (galleries: ClientGallery[]) => {
+  const groups = new Map<string, ClientGroup>();
+
+  galleries.forEach((gallery) => {
+    const groupKey = getClientGroupKey(gallery);
+    const currentGroup = groups.get(groupKey);
+
+    if (currentGroup) {
+      currentGroup.galleries.push(gallery);
+      currentGroup.totalPhotos += Number(gallery.photos || 0);
+      currentGroup.contact = currentGroup.contact || gallery.contact;
+      return;
+    }
+
+    groups.set(groupKey, {
+      key: groupKey,
+      name: gallery.client,
+      contact: gallery.contact,
+      galleries: [gallery],
+      totalPhotos: Number(gallery.photos || 0),
+    });
+  });
+
+  return Array.from(groups.values());
+};
+
 export default function ClientsClient({
   galleries,
   statusClasses,
@@ -45,19 +93,22 @@ export default function ClientsClient({
   const deliveredGalleries = galleries.filter(
     (gallery) => gallery.status === "Livrée",
   ).length;
-  const filteredGalleries = useMemo(() => {
+  const clientGroups = useMemo(() => getClientGroups(galleries), [galleries]);
+  const filteredClients = useMemo(() => {
     const normalizedSearch = search.toLowerCase().trim();
 
     if (!normalizedSearch) {
-      return galleries;
+      return clientGroups;
     }
 
-    return galleries.filter((gallery) =>
-      `${gallery.client} ${gallery.contact ?? ""} ${gallery.code} ${gallery.type} ${gallery.status}`
+    return clientGroups.filter((client) =>
+      `${client.name} ${client.contact ?? ""} ${client.galleries
+        .map((gallery) => `${gallery.code} ${gallery.type} ${gallery.status}`)
+        .join(" ")}`
         .toLowerCase()
         .includes(normalizedSearch),
     );
-  }, [galleries, search]);
+  }, [clientGroups, search]);
 
   return (
     <main className="min-h-screen bg-[#f7f5fb] text-[#191025]">
@@ -120,7 +171,7 @@ export default function ClientsClient({
                   <p className="text-xs font-black uppercase tracking-wide text-white/65">
                     Clients
                   </p>
-                  <p className="mt-3 text-4xl font-black">{galleries.length}</p>
+                  <p className="mt-3 text-4xl font-black">{clientGroups.length}</p>
                   <p className="mt-2 text-sm font-medium text-white/75">
                     clients enregistrés.
                   </p>
@@ -163,53 +214,64 @@ export default function ClientsClient({
                 </div>
 
                 <div className="grid divide-y divide-[#eee6f7]">
-                  {filteredGalleries.length === 0 && (
+                  {filteredClients.length === 0 && (
                     <p className="p-5 text-sm font-bold text-[#766985]">
                       Aucun client enregistré pour le moment.
                     </p>
                   )}
 
-                  {filteredGalleries.map((gallery) => (
+                  {filteredClients.map((client) => (
                     <article
-                      className="grid gap-4 p-5 md:grid-cols-[1fr_0.8fr_0.45fr_auto] md:items-center"
-                      key={gallery.code}
+                      className="grid gap-4 p-5 md:grid-cols-[0.8fr_1.4fr_0.45fr] md:items-start"
+                      key={client.key}
                     >
                       <div>
-                        <p className="font-black">{gallery.client}</p>
-                        <p className="mt-1 text-sm text-[#766985]">
-                          {gallery.type}
-                        </p>
-                        {gallery.contact && (
+                        <p className="font-black">{client.name}</p>
+                        {client.contact && (
                           <p className="mt-1 text-xs font-bold text-[#6f3de2]">
-                            {gallery.contact}
+                            {client.contact}
                           </p>
                         )}
-                      </div>
-                      <div>
-                        <p className="font-mono text-xs font-black text-[#6f3de2]">
-                          {gallery.code}
-                        </p>
-                        <p className="mt-1 text-xs text-[#766985]">
-                          Séance du {gallery.date}
+                        <p className="mt-1 text-sm text-[#766985]">
+                          {client.galleries.length} galerie{client.galleries.length > 1 ? "s" : ""}
                         </p>
                       </div>
-                      <p className="text-sm font-black">{gallery.photos} photos</p>
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusClass(
-                            gallery.status,
-                            statusClasses,
-                          )}`}
-                        >
-                          {gallery.status}
-                        </span>
-                        <Link
-                          className="rounded-full border border-[#e8def5] px-3 py-1.5 text-xs font-black text-[#6f3de2]"
-                          href={`/galeries/${gallery.code}`}
-                        >
-                          Ouvrir
-                        </Link>
+                      <div className="grid gap-2">
+                        {client.galleries.map((gallery) => (
+                          <div
+                            className="grid gap-2 rounded-2xl border border-[#eee6f7] bg-[#fbf8ff] p-3 lg:grid-cols-[1fr_auto] lg:items-center"
+                            key={getGalleryKey(gallery)}
+                          >
+                            <div>
+                              <p className="font-mono text-xs font-black text-[#6f3de2]">
+                                {gallery.code}
+                              </p>
+                              <p className="mt-1 text-sm text-[#766985]">
+                                {gallery.type} · Séance du {gallery.date}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${getStatusClass(
+                                  gallery.status,
+                                  statusClasses,
+                                )}`}
+                              >
+                                {gallery.status}
+                              </span>
+                              <Link
+                                className="rounded-full border border-[#e8def5] bg-white px-3 py-1.5 text-xs font-black text-[#6f3de2]"
+                                href={`/galeries/${gallery.code}`}
+                              >
+                                Ouvrir
+                              </Link>
+                            </div>
+                          </div>
+                        ))}
                       </div>
+                      <p className="text-sm font-black">
+                        {client.totalPhotos} photo{client.totalPhotos > 1 ? "s" : ""}
+                      </p>
                     </article>
                   ))}
                 </div>

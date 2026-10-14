@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const emptyGalleryDetails: GalleryDetails = {
   client: "Galerie introuvable",
   contact: "",
+  photographer_message: "",
   code: "",
   type: "Non renseigné",
   date: "Non renseignée",
@@ -21,7 +22,7 @@ export default async function GalleryDetailPage({
   const { code } = await params;
   const { data } = await supabase
     .from("galleries")
-    .select("client, contact, code, type, date, status, photos")
+    .select("client, contact, photographer_message, code, type, date, status, photos")
     .eq("code", code)
     .maybeSingle();
 
