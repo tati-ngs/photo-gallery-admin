@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { statusClasses } from "@/data/galleries";
-import { supabase } from "@/lib/supabase";
+import {
+  adminAccessTokenCookie,
+  getUserIdFromAccessToken,
+} from "@/lib/adminAuth";
+import { createAuthenticatedSupabaseClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +43,18 @@ const sidebarLinks = [
   { label: "Photos", href: "/photos", active: false },
   { label: "Clients", href: "/clients", active: false },
   { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Déconnexion", href: "/logout", active: false },
 ];
 
 export default async function AdminDashboard() {
+  const cookieStore = await cookies();
+  const accessToken = cookieStore.get(adminAccessTokenCookie)?.value ?? "";
+  const photographerId = getUserIdFromAccessToken(accessToken);
+  const supabase = createAuthenticatedSupabaseClient(accessToken);
   const { data } = await supabase
     .from("galleries")
     .select("id, client, contact, code, type, date, photos, status, created_at")
+    .eq("photographer_id", photographerId)
     .order("created_at", { ascending: false });
   const galleries = (data as DashboardGallery[] | null) ?? [];
   const totalGalleries = galleries.length;

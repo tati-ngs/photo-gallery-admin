@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { createAuthenticatedSupabaseClient } from "@/lib/supabase";
 
 const publicPhotosBucket = "public-gallery";
 const photoCategories = ["Shooting", "Cérémonie", "Marque", "Conférence"];
@@ -27,6 +27,7 @@ const sidebarLinks = [
   { label: "Photos", href: "/photos", active: true },
   { label: "Clients", href: "/clients", active: false },
   { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Déconnexion", href: "/logout", active: false },
 ];
 
 const sanitizeFileName = (fileName: string) =>
@@ -37,7 +38,14 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/^-|-$/g, "")
     .toLowerCase();
 
-export function PhotosClient() {
+export function PhotosClient({
+  accessToken,
+  photographerId,
+}: {
+  accessToken: string;
+  photographerId: string;
+}) {
+  const supabase = createAuthenticatedSupabaseClient(accessToken);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activePhoto, setActivePhoto] = useState<number | null>(null);
   const [feedback, setFeedback] = useState("");
@@ -67,6 +75,7 @@ export function PhotosClient() {
       const { data, error } = await supabase
         .from("public_photos")
         .select("id, title, category, storage_path, public_url, created_at")
+        .eq("photographer_id", photographerId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -116,7 +125,7 @@ export function PhotosClient() {
 
     for (const [index, file] of selectedFiles.entries()) {
       const fileName = `${Date.now()}-${index}-${sanitizeFileName(file.name)}`;
-      const path = `${form.category}/${fileName}`;
+      const path = `${photographerId}/${form.category}/${fileName}`;
       const { error: uploadError } = await supabase.storage
         .from(publicPhotosBucket)
         .upload(path, file, {
@@ -141,6 +150,7 @@ export function PhotosClient() {
           : `${form.title || form.category} ${index + 1}`;
       const photoRecord = {
         id: Date.now() + index,
+        photographer_id: photographerId,
         title,
         category: form.category,
         storage_path: path,
@@ -192,7 +202,8 @@ export function PhotosClient() {
     const { error: deleteError } = await supabase
       .from("public_photos")
       .delete()
-      .eq("id", photoToDelete.id);
+      .eq("id", photoToDelete.id)
+      .eq("photographer_id", photographerId);
 
     if (deleteError) {
       setFeedback("La photo a été retirée du stockage, mais pas de la table.");

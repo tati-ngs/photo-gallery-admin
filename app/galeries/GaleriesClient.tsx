@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { galleries, statusClasses, type Gallery } from "@/data/galleries";
-import { supabase } from "@/lib/supabase";
+import { createAuthenticatedSupabaseClient } from "@/lib/supabase";
 
 type GalleryStatus = keyof typeof statusClasses;
 type FeedbackKind = "idle" | "loading" | "success" | "error";
@@ -64,9 +64,17 @@ const sidebarLinks = [
   { label: "Photos", href: "/photos", active: false },
   { label: "Clients", href: "/clients", active: false },
   { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Déconnexion", href: "/logout", active: false },
 ];
 
-export default function GaleriesClient() {
+export default function GaleriesClient({
+  accessToken,
+  photographerId,
+}: {
+  accessToken: string;
+  photographerId: string;
+}) {
+  const supabase = createAuthenticatedSupabaseClient(accessToken);
   const [galleryList, setGalleryList] = useState<GalleryRow[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [form, setForm] = useState(initialForm);
@@ -91,6 +99,7 @@ export default function GaleriesClient() {
       const { data, error } = await supabase
         .from("galleries")
         .select("id, client, contact, photographer_message, type, date, code, photos, status, created_at")
+        .eq("photographer_id", photographerId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -188,6 +197,7 @@ export default function GaleriesClient() {
         .from("galleries")
         .insert({
           id: newGalleryId,
+          photographer_id: photographerId,
           client: form.client,
           contact: form.contact,
           photographer_message: form.photographerMessage.trim(),
@@ -270,8 +280,8 @@ export default function GaleriesClient() {
 
     const deleteRequest = supabase.from("galleries").delete();
     const { error: deleteError } = gallery.id
-      ? await deleteRequest.eq("id", gallery.id)
-      : await deleteRequest.eq("code", gallery.code);
+      ? await deleteRequest.eq("id", gallery.id).eq("photographer_id", photographerId)
+      : await deleteRequest.eq("code", gallery.code).eq("photographer_id", photographerId);
 
     if (deleteError) {
       showFeedback(

@@ -34,6 +34,7 @@ const sidebarLinks = [
   { label: "Photos", href: "/photos", active: false },
   { label: "Clients", href: "/clients", active: true },
   { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Déconnexion", href: "/logout", active: false },
 ];
 
 const getStatusClass = (

@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { supabase } from "@/lib/supabase";
+import { createAuthenticatedSupabaseClient } from "@/lib/supabase";
 
 const photosBucket = "gallery-photos";
 const galleryStatuses = ["Brouillon", "Prête", "Livrée"];
@@ -43,6 +43,7 @@ const sidebarLinks = [
   { label: "Photos", href: "/photos", active: false },
   { label: "Clients", href: "/clients", active: false },
   { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Déconnexion", href: "/logout", active: false },
 ];
 
 const sanitizeFileName = (fileName: string) =>
@@ -114,12 +115,17 @@ function GalleryImage({
 }
 
 export default function GalleryDetailClient({
+  accessToken,
   code,
   initialGallery,
+  photographerId,
 }: {
+  accessToken: string;
   code: string;
   initialGallery: GalleryDetails;
+  photographerId: string;
 }) {
+  const supabase = createAuthenticatedSupabaseClient(accessToken);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [galleryDetails, setGalleryDetails] = useState(initialGallery);
   const [photos, setPhotos] = useState<GalleryPhoto[]>([]);
@@ -197,7 +203,8 @@ export default function GalleryDetailClient({
     const { error } = await supabase
       .from("galleries")
       .update({ photos: nextPhotoCount })
-      .eq("code", galleryCode);
+      .eq("code", galleryCode)
+      .eq("photographer_id", photographerId);
 
     if (error) {
       setFeedback(
@@ -331,7 +338,8 @@ export default function GalleryDetailClient({
     const { error } = await supabase
       .from("galleries")
       .update({ status: nextStatus })
-      .eq("code", galleryCode);
+      .eq("code", galleryCode)
+      .eq("photographer_id", photographerId);
 
     setIsUpdatingStatus(false);
 
