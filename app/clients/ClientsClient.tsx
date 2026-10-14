@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 
 export type ClientGallery = {
   client: string;
+  contact?: string;
   code: string;
   type: string;
   date: string;
@@ -52,7 +53,7 @@ export default function ClientsClient({
     }
 
     return galleries.filter((gallery) =>
-      `${gallery.client} ${gallery.code} ${gallery.type} ${gallery.status}`
+      `${gallery.client} ${gallery.contact ?? ""} ${gallery.code} ${gallery.type} ${gallery.status}`
         .toLowerCase()
         .includes(normalizedSearch),
     );
@@ -178,6 +179,11 @@ export default function ClientsClient({
                         <p className="mt-1 text-sm text-[#766985]">
                           {gallery.type}
                         </p>
+                        {gallery.contact && (
+                          <p className="mt-1 text-xs font-bold text-[#6f3de2]">
+                            {gallery.contact}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="font-mono text-xs font-black text-[#6f3de2]">

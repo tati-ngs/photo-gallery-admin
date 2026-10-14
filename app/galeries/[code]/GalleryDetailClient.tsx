@@ -15,6 +15,7 @@ const galleryStatuses = ["Brouillon", "Prête", "Livrée"];
 
 export type GalleryDetails = {
   client: string;
+  contact?: string;
   code: string;
   type: string;
   date: string;
@@ -549,6 +550,14 @@ export default function GalleryDetailClient({
                           {galleryDetails.client}
                         </span>
                       </p>
+                      {galleryDetails.contact && (
+                        <p className="flex justify-between gap-4">
+                          <span className="text-[#766985]">Contact</span>
+                          <span className="font-black">
+                            {galleryDetails.contact}
+                          </span>
+                        </p>
+                      )}
                       <p className="flex justify-between gap-4">
                         <span className="text-[#766985]">Statut</span>
                         <span className="font-black text-[#6f3de2]">

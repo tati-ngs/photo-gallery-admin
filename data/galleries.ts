@@ -2,6 +2,7 @@ export type GalleryStatus = "Brouillon" | "Prête" | "Livrée";
 
 export type Gallery = {
   client: string;
+  contact?: string;
   code: string;
   type: string;
   date: string;

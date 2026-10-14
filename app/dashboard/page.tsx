@@ -103,22 +103,6 @@ export default async function AdminDashboard() {
           ? "aucun client"
           : `${totalClients} client${totalClients > 1 ? "s" : ""} unique${totalClients > 1 ? "s" : ""}`,
     },
-    {
-      label: "Total galeries",
-      value: String(totalGalleries),
-      detail:
-        totalGalleries === 0
-          ? "aucune galerie"
-          : `${totalGalleries} galerie${totalGalleries > 1 ? "s" : ""} créée${totalGalleries > 1 ? "s" : ""}`,
-    },
-    {
-      label: "Total photos",
-      value: String(totalPhotos),
-      detail:
-        totalPhotos === 0
-          ? "aucune photo"
-          : `${totalPhotos} photo${totalPhotos > 1 ? "s" : ""} ajoutée${totalPhotos > 1 ? "s" : ""}`,
-    },
   ];
 
   return (

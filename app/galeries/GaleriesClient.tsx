@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { galleries, statusClasses, type Gallery } from "@/data/galleries";
 import { supabase } from "@/lib/supabase";
 
 type GalleryStatus = keyof typeof statusClasses;
+type FeedbackKind = "idle" | "loading" | "success" | "error";
 
 type GalleryRow = Omit<Gallery, "photos" | "status"> & {
   id?: number;
@@ -16,9 +17,13 @@ type GalleryRow = Omit<Gallery, "photos" | "status"> & {
 
 const initialForm = {
   client: "",
+  contact: "",
   type: "",
   date: "",
 };
+
+const minimumCreationDelay = 5000;
+const photosBucket = "gallery-photos";
 
 const generateGalleryCode = (clientName: string, galleryNumber: number) => {
   const readableName = clientName
@@ -51,10 +56,13 @@ export default function GaleriesClient() {
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingGalleryCode, setDeletingGalleryCode] = useState("");
   const [feedback, setFeedback] = useState("");
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>("idle");
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const generatedCode = generateGalleryCode(form.client, galleryList.length + 1);
   const filteredGalleries = galleryList.filter((gallery) => {
-    const searchableText = `${gallery.client} ${gallery.code} ${gallery.type}`
+    const searchableText = `${gallery.client} ${gallery.contact ?? ""} ${gallery.code} ${gallery.type}`
       .toLowerCase()
       .trim();
 
@@ -65,11 +73,12 @@ export default function GaleriesClient() {
     const loadGalleries = async () => {
       const { data, error } = await supabase
         .from("galleries")
-        .select("id, client, type, date, code, photos, status, created_at")
+        .select("id, client, contact, type, date, code, photos, status, created_at")
         .order("created_at", { ascending: false });
 
       if (error) {
-        setFeedback("Impossible de charger les galeries depuis Supabase.");
+        setFeedback("Impossible de charger les galeries pour le moment.");
+        setFeedbackKind("error");
         setGalleryList(galleries);
       } else {
         setGalleryList(data ?? []);
@@ -81,37 +90,139 @@ export default function GaleriesClient() {
     loadGalleries();
   }, []);
 
+  const showFeedback = (
+    message: string,
+    kind: Exclude<FeedbackKind, "idle">,
+    shouldDisappear = false,
+  ) => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+    }
+
+    setFeedback(message);
+    setFeedbackKind(kind);
+
+    if (shouldDisappear) {
+      feedbackTimeoutRef.current = setTimeout(() => {
+        setFeedback("");
+        setFeedbackKind("idle");
+      }, 3000);
+    }
+  };
+
+  useEffect(
+    () => () => {
+      if (feedbackTimeoutRef.current) {
+        clearTimeout(feedbackTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSaving(true);
-    setFeedback("");
+    showFeedback("Galerie en cours de création.", "loading");
     const newGalleryId = Date.now();
+    const minimumDelay = new Promise((resolve) =>
+      setTimeout(resolve, minimumCreationDelay),
+    );
 
-    const { data, error } = await supabase
+    const creationRequest = supabase
       .from("galleries")
       .insert({
         id: newGalleryId,
         client: form.client,
+        contact: form.contact,
         type: form.type,
         date: form.date,
         code: generatedCode,
         photos: 0,
         status: "Brouillon",
       })
-      .select("id, client, type, date, code, photos, status, created_at")
+      .select("id, client, contact, type, date, code, photos, status, created_at")
       .single();
+    const [{ data, error }] = await Promise.all([creationRequest, minimumDelay]);
 
     if (error) {
-      setFeedback("La galerie n’a pas pu être enregistrée dans Supabase.");
+      showFeedback(
+        "La galerie n’a pas pu être créée. Réessaie dans un instant.",
+        "error",
+      );
       setIsSaving(false);
       return;
     }
 
     setGalleryList((currentGalleries) => [data, ...currentGalleries]);
-    setFeedback("Galerie enregistrée dans Supabase.");
+    showFeedback("Galerie créée avec succès.", "success", true);
     setForm(initialForm);
     setIsFormOpen(false);
     setIsSaving(false);
+  };
+
+  const handleDeleteGallery = async (gallery: GalleryRow) => {
+    const shouldDelete = window.confirm(
+      `Supprimer la galerie ${gallery.client} ? Cette action retirera aussi ses photos.`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setDeletingGalleryCode(gallery.code);
+    showFeedback("Suppression de la galerie en cours.", "loading");
+
+    const { data: storedPhotos, error: listError } = await supabase.storage
+      .from(photosBucket)
+      .list(gallery.code, { limit: 100 });
+
+    if (listError) {
+      showFeedback(
+        "La galerie n’a pas pu être supprimée. Les photos associées sont introuvables pour le moment.",
+        "error",
+      );
+      setDeletingGalleryCode("");
+      return;
+    }
+
+    const photoPaths = (storedPhotos ?? []).map(
+      (photo) => `${gallery.code}/${photo.name}`,
+    );
+
+    if (photoPaths.length > 0) {
+      const { error: removeError } = await supabase.storage
+        .from(photosBucket)
+        .remove(photoPaths);
+
+      if (removeError) {
+        showFeedback(
+          "La galerie n’a pas pu être supprimée. Certaines photos n’ont pas été retirées.",
+          "error",
+        );
+        setDeletingGalleryCode("");
+        return;
+      }
+    }
+
+    const { error: deleteError } = await supabase
+      .from("galleries")
+      .delete()
+      .eq("code", gallery.code);
+
+    if (deleteError) {
+      showFeedback(
+        "La galerie n’a pas pu être supprimée. Réessaie dans un instant.",
+        "error",
+      );
+      setDeletingGalleryCode("");
+      return;
+    }
+
+    setGalleryList((currentGalleries) =>
+      currentGalleries.filter((currentGallery) => currentGallery.code !== gallery.code),
+    );
+    showFeedback("Galerie supprimée avec succès.", "success", true);
+    setDeletingGalleryCode("");
   };
 
   return (
@@ -172,9 +283,22 @@ export default function GaleriesClient() {
               </header>
 
               {feedback && (
-                <p className="mt-4 rounded-2xl border border-[#e8def5] bg-white px-4 py-3 text-sm font-bold text-[#6f3de2]">
-                  {feedback}
-                </p>
+                <div
+                  className={`mt-4 flex items-center gap-3 rounded-2xl border px-4 py-3 text-sm font-bold ${
+                    feedbackKind === "error"
+                      ? "border-[#ffd5d2] bg-[#fff6f5] text-[#b42318]"
+                      : "border-[#e8def5] bg-white text-[#6f3de2]"
+                  }`}
+                >
+                  {feedbackKind === "loading" && (
+                    <span
+                      aria-label="Création en cours"
+                      className="size-5 rounded-full border-2 border-[#d9c8f1] border-t-[#6f3de2] animate-spin"
+                      role="status"
+                    />
+                  )}
+                  <span>{feedback}</span>
+                </div>
               )}
 
               {isFormOpen && (
@@ -233,6 +357,19 @@ export default function GaleriesClient() {
                     </label>
 
                     <label className="grid gap-2 text-sm font-bold">
+                      Contact du client
+                      <input
+                        className="rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 py-3 font-medium outline-none focus:border-[#6f3de2]"
+                        onChange={(event) =>
+                          setForm({ ...form, contact: event.target.value })
+                        }
+                        placeholder="Téléphone ou email"
+                        type="text"
+                        value={form.contact}
+                      />
+                    </label>
+
+                    <label className="grid gap-2 text-sm font-bold">
                       Date de la séance *
                       <input
                         className="rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 py-3 font-medium outline-none focus:border-[#6f3de2]"
@@ -281,7 +418,7 @@ export default function GaleriesClient() {
                   <div>
                     <h2 className="text-lg font-black">Toutes les galeries</h2>
                     <p className="mt-1 text-sm text-[#766985]">
-                      Liste des espaces client créés dans l’admin.
+                      Liste des espaces client.
                     </p>
                   </div>
                   <input
@@ -316,6 +453,11 @@ export default function GaleriesClient() {
                         <p className="mt-1 text-sm text-[#766985]">
                           {gallery.type}
                         </p>
+                        {gallery.contact && (
+                          <p className="mt-1 text-xs font-bold text-[#6f3de2]">
+                            {gallery.contact}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <p className="font-mono text-xs font-black text-[#6f3de2]">
@@ -340,6 +482,16 @@ export default function GaleriesClient() {
                         >
                           Ouvrir
                         </Link>
+                        <button
+                          className="rounded-full border border-[#ffd5d2] bg-[#fff6f5] px-3 py-1.5 text-xs font-black text-[#b42318] disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={deletingGalleryCode === gallery.code}
+                          onClick={() => handleDeleteGallery(gallery)}
+                          type="button"
+                        >
+                          {deletingGalleryCode === gallery.code
+                            ? "Suppression..."
+                            : "Supprimer"}
+                        </button>
                       </div>
                     </article>
                   ))}
