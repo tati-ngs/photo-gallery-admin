@@ -42,7 +42,7 @@ const sidebarLinks = [
   { label: "Galeries", href: "/galeries", active: false },
   { label: "Photos", href: "/photos", active: false },
   { label: "Clients", href: "/clients", active: false },
-  { label: "Réglages", href: "/dashboard", active: false },
+  { label: "Réglages", href: "/reglages", active: false },
   { label: "Déconnexion", href: "/logout", active: false },
 ];
 

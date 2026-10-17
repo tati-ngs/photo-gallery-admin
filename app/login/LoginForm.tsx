@@ -24,6 +24,7 @@ export default function LoginForm({
 
   return (
     <form
+      autoComplete="off"
       action={formAction}
       className="mt-8 grid gap-5 rounded-[28px] border border-[#e8def5] bg-white p-5 shadow-[0_24px_70px_rgba(47,28,70,0.12)] sm:p-7"
     >
@@ -55,10 +56,53 @@ export default function LoginForm({
         </button>
       </div>
 
+      {mode === "signup" && (
+        <div className="grid gap-5 sm:grid-cols-2">
+          <label className="grid gap-2 text-sm font-bold">
+            Prénom
+            <input
+              autoComplete="given-name"
+              className="h-14 rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 font-medium outline-none transition focus:border-[#6f3de2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(111,61,226,0.10)]"
+              disabled={!isConfigured || isPending}
+              name="firstName"
+              placeholder="Votre prénom"
+              required
+              type="text"
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-bold">
+            Nom
+            <input
+              autoComplete="family-name"
+              className="h-14 rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 font-medium outline-none transition focus:border-[#6f3de2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(111,61,226,0.10)]"
+              disabled={!isConfigured || isPending}
+              name="lastName"
+              placeholder="Votre nom"
+              required
+              type="text"
+            />
+          </label>
+
+          <label className="grid gap-2 text-sm font-bold sm:col-span-2">
+            Numéro de téléphone
+            <input
+              autoComplete="tel"
+              className="h-14 rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 font-medium outline-none transition focus:border-[#6f3de2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(111,61,226,0.10)]"
+              disabled={!isConfigured || isPending}
+              name="phone"
+              placeholder="Ex. : 0500000000"
+              required
+              type="tel"
+            />
+          </label>
+        </div>
+      )}
+
       <label className="grid gap-2 text-sm font-bold">
         Email
         <input
-          autoComplete="email"
+          autoComplete="off"
           className="h-14 rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 font-medium outline-none transition focus:border-[#6f3de2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(111,61,226,0.10)]"
           disabled={!isConfigured || isPending}
           name="email"
@@ -72,7 +116,7 @@ export default function LoginForm({
         Mot de passe
         <div className="relative">
           <input
-            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            autoComplete="new-password"
             className="h-14 w-full rounded-2xl border border-[#e8def5] bg-[#fbf8ff] px-4 pr-16 font-medium outline-none transition focus:border-[#6f3de2] focus:bg-white focus:shadow-[0_0_0_4px_rgba(111,61,226,0.10)]"
             disabled={!isConfigured || isPending}
             minLength={6}

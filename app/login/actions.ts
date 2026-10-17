@@ -68,6 +68,9 @@ export async function loginAction(
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const intent = String(formData.get("intent") ?? "login");
+  const firstName = String(formData.get("firstName") ?? "").trim();
+  const lastName = String(formData.get("lastName") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
 
   if (!supabase) {
     return {
@@ -77,11 +80,21 @@ export async function loginAction(
   }
 
   if (intent === "signup") {
-    const { data, error } = await supabase.auth.signUp({
+    if (!firstName || !lastName || !phone) {
+      return {
+        error: "Renseignez votre prénom, votre nom et votre numéro de téléphone.",
+        success: "",
+      };
+    }
+
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
+          first_name: firstName,
+          last_name: lastName,
+          phone,
           role: "photographer",
         },
       },
@@ -91,16 +104,7 @@ export async function loginAction(
       return { error: error.message, success: "" };
     }
 
-    if (!data.session) {
-      return {
-        error: "",
-        success:
-          "Compte créé. Vérifiez votre email si Supabase demande une confirmation, puis connectez-vous.",
-      };
-    }
-
-    await setSessionCookies(data.session);
-    redirect(getSafeRedirectPath(formData.get("next")));
+    redirect("/login?created=1");
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({

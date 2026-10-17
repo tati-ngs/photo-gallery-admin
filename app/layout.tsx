@@ -20,7 +20,7 @@ const anton = Anton({
 });
 
 export const metadata: Metadata = {
-  title: "PS23 Admin",
+  title: "PS23 Gestion",
   description: "Tableau de bord PS23PHOTOGRAPHY",
 };
 
