@@ -11,6 +11,7 @@ const publicPathPrefixes = [
   "/_next",
   "/favicon.ico",
   "/login",
+  "/api/auth/login",
   "/logout",
 ];
 

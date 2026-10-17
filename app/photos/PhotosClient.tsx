@@ -14,6 +14,7 @@ type PublicPhoto = {
   storage_path: string;
   public_url: string;
   created_at?: string;
+  deleted_at?: string | null;
 };
 
 const initialForm = {
@@ -56,17 +57,21 @@ export function PhotosClient({
   const [photos, setPhotos] = useState<PublicPhoto[]>([]);
   const [search, setSearch] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [showTrash, setShowTrash] = useState(false);
   const filteredPhotos = useMemo(() => {
     const normalizedSearch = search.toLowerCase().trim();
+    const visiblePhotos = photos.filter((photo) =>
+      showTrash ? Boolean(photo.deleted_at) : !photo.deleted_at,
+    );
 
     if (!normalizedSearch) {
-      return photos;
+      return visiblePhotos;
     }
 
-    return photos.filter((photo) =>
+    return visiblePhotos.filter((photo) =>
       `${photo.title} ${photo.category}`.toLowerCase().includes(normalizedSearch),
     );
-  }, [photos, search]);
+  }, [photos, search, showTrash]);
   const currentPhoto =
     activePhoto === null ? null : filteredPhotos[activePhoto] ?? null;
 
@@ -74,7 +79,7 @@ export function PhotosClient({
     const loadPhotos = async () => {
       const { data, error } = await supabase
         .from("public_photos")
-        .select("id, title, category, storage_path, public_url, created_at")
+        .select("id, title, category, storage_path, public_url, created_at, deleted_at")
         .eq("photographer_id", photographerId)
         .order("created_at", { ascending: false });
 
@@ -159,7 +164,7 @@ export function PhotosClient({
       const { data, error: insertError } = await supabase
         .from("public_photos")
         .insert(photoRecord)
-        .select("id, title, category, storage_path, public_url, created_at")
+        .select("id, title, category, storage_path, public_url, created_at, deleted_at")
         .single();
 
       if (insertError) {
@@ -189,7 +194,53 @@ export function PhotosClient({
     setIsUploading(false);
   };
 
-  const handleDeletePhoto = async (photoToDelete: PublicPhoto) => {
+  const handleArchivePhoto = async (photoToArchive: PublicPhoto) => {
+    const { error } = await supabase
+      .from("public_photos")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", photoToArchive.id)
+      .eq("photographer_id", photographerId);
+
+    if (error) {
+      setFeedback("La photo n’a pas pu être déplacée dans la corbeille.");
+      return;
+    }
+
+    setPhotos((currentPhotos) =>
+      currentPhotos.map((photo) =>
+        photo.id === photoToArchive.id
+          ? { ...photo, deleted_at: new Date().toISOString() }
+          : photo,
+      ),
+    );
+    setFeedback("Photo déplacée dans la corbeille.");
+  };
+
+  const handleRestorePhoto = async (photoToRestore: PublicPhoto) => {
+    const { error } = await supabase
+      .from("public_photos")
+      .update({ deleted_at: null })
+      .eq("id", photoToRestore.id)
+      .eq("photographer_id", photographerId);
+
+    if (error) {
+      setFeedback("La photo n’a pas pu être restaurée.");
+      return;
+    }
+
+    setPhotos((currentPhotos) =>
+      currentPhotos.map((photo) =>
+        photo.id === photoToRestore.id ? { ...photo, deleted_at: null } : photo,
+      ),
+    );
+    setFeedback("Photo restaurée dans la galerie publique.");
+  };
+
+  const handlePermanentDeletePhoto = async (photoToDelete: PublicPhoto) => {
+    if (!window.confirm("Supprimer définitivement cette photo ? Cette action est irréversible.")) {
+      return;
+    }
+
     const { error: removeError } = await supabase.storage
       .from(publicPhotosBucket)
       .remove([photoToDelete.storage_path]);
@@ -213,7 +264,7 @@ export function PhotosClient({
     setPhotos((currentPhotos) =>
       currentPhotos.filter((photo) => photo.id !== photoToDelete.id),
     );
-    setFeedback("Photo supprimée.");
+    setFeedback("Photo supprimée définitivement.");
   };
 
   return (
@@ -365,18 +416,40 @@ export function PhotosClient({
                 <div className="rounded-2xl border border-[#e8def5] bg-white p-5 shadow-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h2 className="text-lg font-black">Photos publiées</h2>
+                      <h2 className="text-lg font-black">
+                        {showTrash ? "Corbeille" : "Photos publiées"}
+                      </h2>
                       <p className="mt-1 text-sm text-[#766985]">
-                        Cliquez sur une photo pour l’agrandir et faire défiler.
+                        {showTrash
+                          ? "Restaurez une photo ou supprimez-la définitivement."
+                          : "Cliquez sur une photo pour l’agrandir et faire défiler."}
                       </p>
                     </div>
-                    <input
-                      className="w-full rounded-full border border-[#e8def5] bg-[#fbf8ff] px-4 py-2 text-sm outline-none focus:border-[#6f3de2] sm:w-72"
-                      onChange={(event) => setSearch(event.target.value)}
-                      placeholder="Rechercher une photo"
-                      type="search"
-                      value={search}
-                    />
+                    <div className="flex flex-col gap-2 sm:items-end">
+                      <div className="flex gap-2 text-xs font-bold">
+                        <button
+                          className={`rounded-full px-3 py-2 ${!showTrash ? "bg-[#6f3de2] text-white" : "border border-[#e8def5] text-[#6f3de2]"}`}
+                          onClick={() => setShowTrash(false)}
+                          type="button"
+                        >
+                          Publiées ({photos.filter((photo) => !photo.deleted_at).length})
+                        </button>
+                        <button
+                          className={`rounded-full px-3 py-2 ${showTrash ? "bg-[#6f3de2] text-white" : "border border-[#e8def5] text-[#6f3de2]"}`}
+                          onClick={() => setShowTrash(true)}
+                          type="button"
+                        >
+                          Corbeille ({photos.filter((photo) => photo.deleted_at).length})
+                        </button>
+                      </div>
+                      <input
+                        className="w-full rounded-full border border-[#e8def5] bg-[#fbf8ff] px-4 py-2 text-sm outline-none focus:border-[#6f3de2] sm:w-72"
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Rechercher une photo"
+                        type="search"
+                        value={search}
+                      />
+                    </div>
                   </div>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -419,13 +492,32 @@ export function PhotosClient({
                                 {photo.category}
                               </p>
                             </div>
-                            <button
-                              className="border border-[#ffd5d2] bg-[#fff0f0] px-3 py-2 text-xs font-bold text-[#b42318]"
-                              onClick={() => handleDeletePhoto(photo)}
-                              type="button"
-                            >
-                              Supprimer
-                            </button>
+                            {showTrash ? (
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <button
+                                  className="border border-[#d7f0df] bg-[#effbf3] px-3 py-2 text-xs font-bold text-[#197a3b]"
+                                  onClick={() => handleRestorePhoto(photo)}
+                                  type="button"
+                                >
+                                  Restaurer
+                                </button>
+                                <button
+                                  className="border border-[#ffd5d2] bg-[#fff0f0] px-3 py-2 text-xs font-bold text-[#b42318]"
+                                  onClick={() => handlePermanentDeletePhoto(photo)}
+                                  type="button"
+                                >
+                                  Supprimer définitivement
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="border border-[#eadff5] bg-[#f7f2ff] px-3 py-2 text-xs font-bold text-[#6f3de2]"
+                                onClick={() => handleArchivePhoto(photo)}
+                                type="button"
+                              >
+                                Déplacer dans la corbeille
+                              </button>
+                            )}
                           </div>
                         </article>
                       ))}
@@ -437,7 +529,9 @@ export function PhotosClient({
                     <p className="text-xs font-black uppercase tracking-wide text-white/65">
                       Aperçu
                     </p>
-                    <p className="mt-4 text-4xl font-black">{photos.length}</p>
+                    <p className="mt-4 text-4xl font-black">
+                      {photos.filter((photo) => !photo.deleted_at).length}
+                    </p>
                     <p className="mt-2 text-sm font-medium text-white/75">
                       photos publiées.
                     </p>
@@ -454,7 +548,10 @@ export function PhotosClient({
                           <span>{category}</span>
                           <span>
                             {
-                              photos.filter((photo) => photo.category === category)
+                              photos.filter(
+                                (photo) =>
+                                  !photo.deleted_at && photo.category === category,
+                              )
                                 .length
                             }
                           </span>
