@@ -4,7 +4,6 @@ import {
   adminAccessTokenCookie,
   adminRefreshTokenCookie,
   getSupabaseAuthConfig,
-  isAccessTokenValid,
 } from "./lib/adminAuth";
 
 const publicPathPrefixes = [
@@ -74,8 +73,20 @@ export async function proxy(request: NextRequest) {
 
   const currentSession = request.cookies.get(adminAccessTokenCookie)?.value;
 
-  if (isAccessTokenValid(currentSession)) {
-    return NextResponse.next();
+  const { anonKey, url } = getSupabaseAuthConfig();
+
+  if (currentSession && anonKey && url) {
+    const supabase = createClient(url, anonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+    const { data, error } = await supabase.auth.getUser(currentSession);
+
+    if (data.user && !error) {
+      return NextResponse.next();
+    }
   }
 
   const refreshedResponse = await refreshAdminSession(request);
