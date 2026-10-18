@@ -79,7 +79,7 @@ export async function proxy(request: NextRequest) {
   // A valid JWT is enough for the request; the network check below is only
   // needed when the token has expired or cannot be decoded locally.
   if (isAccessTokenValid(currentSession)) {
-    return NextResponse.next();
+    return NextResponse.next({ request });
   }
 
   if (currentSession && anonKey && url) {
@@ -92,7 +92,7 @@ export async function proxy(request: NextRequest) {
     const { data, error } = await supabase.auth.getUser(currentSession);
 
     if (data.user && !error) {
-      return NextResponse.next();
+      return NextResponse.next({ request });
     }
   }
 

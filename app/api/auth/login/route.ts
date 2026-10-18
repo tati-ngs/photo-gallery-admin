@@ -54,12 +54,35 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAuthClient();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const intent = String(formData.get("intent") ?? "login");
 
   if (!supabase) {
     return NextResponse.json(
       { error: "La connexion Supabase n’est pas disponible." },
       { status: 500 },
     );
+  }
+
+  if (intent === "signup") {
+    const firstName = String(formData.get("firstName") ?? "").trim();
+    const lastName = String(formData.get("lastName") ?? "").trim();
+    const phone = String(formData.get("phone") ?? "").trim();
+
+    if (!firstName || !lastName || !phone) {
+      return NextResponse.json({ error: "Renseignez votre prénom, votre nom et votre numéro de téléphone." }, { status: 400 });
+    }
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { first_name: firstName, last_name: lastName, phone, role: "photographer" } },
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.redirect(new URL("/login?created=1", request.url), 303);
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({

@@ -30,7 +30,7 @@ export const createSupabaseAuthClient = () => {
 };
 
 const decodeBase64Url = (value: string) => {
-  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const base64 = value.trim().replace(/-/g, "+").replace(/_/g, "/");
   const padding = "=".repeat((4 - (base64.length % 4)) % 4);
 
   return atob(`${base64}${padding}`);
@@ -42,16 +42,22 @@ export const isAccessTokenValid = (token?: string) => {
   }
 
   try {
-    const [, payload] = token.split(".");
-    const parsedPayload = JSON.parse(decodeBase64Url(payload)) as {
-      exp?: number;
-    };
-
-    if (!parsedPayload.exp) {
+    const parts = token.trim().split(".");
+    if (parts.length !== 3 || !parts[1]) {
       return false;
     }
 
-    return parsedPayload.exp * 1000 > Date.now();
+    const [, payload] = parts;
+    const parsedPayload = JSON.parse(decodeBase64Url(payload)) as {
+      exp?: number;
+      sub?: string;
+    };
+
+    if (!parsedPayload.exp || !parsedPayload.sub) {
+      return false;
+    }
+
+    return Number(parsedPayload.exp) * 1000 > Date.now();
   } catch {
     return false;
   }
