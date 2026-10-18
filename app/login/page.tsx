@@ -23,7 +23,7 @@ export default async function LoginPage({
     redirect("/dashboard");
   }
 
-  const { next } = await searchParams;
+  const { next, created } = await searchParams;
   const nextPath = next?.startsWith("/") && !next.startsWith("//")
     ? next
     : "/dashboard";
