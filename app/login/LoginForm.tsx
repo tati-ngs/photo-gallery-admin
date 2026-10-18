@@ -21,57 +21,14 @@ export default function LoginForm({
 }) {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [state, setState] = useState(initialState);
-  const [isPending, setIsPending] = useState(false);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setState(initialState);
-    setIsPending(true);
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        body: new FormData(event.currentTarget),
-        credentials: "same-origin",
-        method: "POST",
-        redirect: "manual",
-      });
-
-      if (response.status >= 300 && response.status < 400) {
-        window.location.assign(response.headers.get("Location") ?? "/dashboard");
-        return;
-      }
-
-      const result = (await response.json()) as {
-        error?: string;
-        redirect?: string;
-      };
-
-      if (!response.ok || !result.redirect) {
-        setState({
-          error: result.error ?? "Connexion impossible pour le moment.",
-          success: "",
-        });
-        return;
-      }
-
-      window.location.assign(result.redirect);
-    } catch {
-      setState({
-        error: "Impossible de contacter le serveur. Réessayez.",
-        success: "",
-      });
-    } finally {
-      setIsPending(false);
-    }
-  };
+  const state = initialState;
+  const isPending = false;
 
   return (
     <form
       action="/api/auth/login"
       autoComplete="off"
       method="post"
-      onSubmit={handleSubmit}
       className="mt-8 grid gap-5 rounded-[28px] border border-[#e8def5] bg-white p-5 shadow-[0_24px_70px_rgba(47,28,70,0.12)] sm:p-7"
     >
       <input name="intent" type="hidden" value={mode} />
