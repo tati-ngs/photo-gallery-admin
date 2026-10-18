@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ redirect: "/login?created=1" });
+    return NextResponse.redirect(new URL("/login?created=1", request.url), 303);
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -102,9 +102,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = NextResponse.json({
-    redirect: getSafeRedirectPath(formData.get("next")),
-  });
+  const response = NextResponse.redirect(
+    new URL(getSafeRedirectPath(formData.get("next")), request.url),
+    303,
+  );
   setSessionCookies(response, data.session);
   return response;
 }

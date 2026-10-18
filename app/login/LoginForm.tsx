@@ -34,7 +34,14 @@ export default function LoginForm({
         body: new FormData(event.currentTarget),
         credentials: "same-origin",
         method: "POST",
+        redirect: "manual",
       });
+
+      if (response.status >= 300 && response.status < 400) {
+        window.location.assign(response.headers.get("Location") ?? "/dashboard");
+        return;
+      }
+
       const result = (await response.json()) as {
         error?: string;
         redirect?: string;
@@ -61,7 +68,9 @@ export default function LoginForm({
 
   return (
     <form
+      action="/api/auth/login"
       autoComplete="off"
+      method="post"
       onSubmit={handleSubmit}
       className="mt-8 grid gap-5 rounded-[28px] border border-[#e8def5] bg-white p-5 shadow-[0_24px_70px_rgba(47,28,70,0.12)] sm:p-7"
     >
