@@ -23,7 +23,7 @@ export default async function LoginPage({
     redirect("/dashboard");
   }
 
-  const { next, created } = await searchParams;
+  const { next } = await searchParams;
   const nextPath = next?.startsWith("/") && !next.startsWith("//")
     ? next
     : "/dashboard";
@@ -89,15 +89,8 @@ export default async function LoginPage({
             Accès sécurisé
           </p>
           <p className="mt-3 text-sm leading-6 text-[#766985]">
-            Connectez-vous ou créez votre compte photographe pour gérer vos
-            galeries, vos clients et vos photos.
+            Connectez-vous pour gérer vos galeries, vos clients et vos photos.
           </p>
-
-          {created === "1" && (
-            <p className="mt-4 rounded-2xl bg-[#e8fbef] px-4 py-3 text-sm font-bold text-[#197a3b]">
-              Compte créé. Connectez-vous avec votre e-mail et votre mot de passe.
-            </p>
-          )}
 
           <LoginForm
             isConfigured={isSupabaseAuthConfigured()}
