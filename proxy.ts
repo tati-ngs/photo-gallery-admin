@@ -4,6 +4,7 @@ import {
   adminAccessTokenCookie,
   adminRefreshTokenCookie,
   getSupabaseAuthConfig,
+  isAccessTokenValid,
 } from "./lib/adminAuth";
 
 const publicPathPrefixes = [
@@ -74,6 +75,12 @@ export async function proxy(request: NextRequest) {
   const currentSession = request.cookies.get(adminAccessTokenCookie)?.value;
 
   const { anonKey, url } = getSupabaseAuthConfig();
+
+  // A valid JWT is enough for the request; the network check below is only
+  // needed when the token has expired or cannot be decoded locally.
+  if (isAccessTokenValid(currentSession)) {
+    return NextResponse.next();
+  }
 
   if (currentSession && anonKey && url) {
     const supabase = createClient(url, anonKey, {
