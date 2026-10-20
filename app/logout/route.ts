@@ -4,11 +4,21 @@ import {
   adminRefreshTokenCookie,
 } from "@/lib/adminAuth";
 
-export function GET(request: Request) {
+function logoutResponse(request: Request) {
   const response = NextResponse.redirect(new URL("/login", request.url));
-  response.cookies.delete(adminAccessTokenCookie);
-  response.cookies.delete(adminRefreshTokenCookie);
+  const cookieOptions = {
+    expires: new Date(0),
+    maxAge: 0,
+    path: "/",
+  };
+
+  response.cookies.set(adminAccessTokenCookie, "", cookieOptions);
+  response.cookies.set(adminRefreshTokenCookie, "", cookieOptions);
 
   return response;
+}
+
+export function POST(request: Request) {
+  return logoutResponse(request);
 }
 

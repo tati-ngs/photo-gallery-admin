@@ -91,9 +91,15 @@ export default function SettingsClient({
               ["Clients", "/clients"],
               ["Réglages", "/reglages"],
               ["Déconnexion", "/logout"],
-            ].map(([label, href]) => (
-              <Link className={`rounded-xl px-3 py-2 ${label === "Réglages" ? "bg-white text-[#171020]" : "text-white/60 hover:bg-white/10 hover:text-white"}`} href={href} key={label}>{label}</Link>
-            ))}
+            ].map(([label, href]) =>
+              href === "/logout" ? (
+                <form action="/logout" method="post" key={label}>
+                  <button className="w-full rounded-xl px-3 py-2 text-left text-white/60 hover:bg-white/10 hover:text-white" type="submit">{label}</button>
+                </form>
+              ) : (
+                <Link className={`rounded-xl px-3 py-2 ${label === "Réglages" ? "bg-white text-[#171020]" : "text-white/60 hover:bg-white/10 hover:text-white"}`} href={href} key={label}>{label}</Link>
+              ),
+            )}
           </nav>
         </aside>
 

@@ -149,17 +149,28 @@ export default async function AdminDashboard() {
 
               <nav className="mt-10 grid gap-2 text-sm font-bold">
                 {sidebarLinks.map((link) => (
-                  <Link
-                    className={`rounded-xl px-3 py-2 transition ${
-                      link.active
-                        ? "bg-white text-[#171020]"
-                        : "text-white/55 hover:bg-white/10 hover:text-white"
-                    }`}
-                    href={link.href}
-                    key={link.label}
-                  >
-                    {link.label}
-                  </Link>
+                  link.href === "/logout" ? (
+                    <form action="/logout" method="post" key={link.label}>
+                      <button
+                        className="w-full rounded-xl px-3 py-2 text-left text-white/55 transition hover:bg-white/10 hover:text-white"
+                        type="submit"
+                      >
+                        {link.label}
+                      </button>
+                    </form>
+                  ) : (
+                    <Link
+                      className={`rounded-xl px-3 py-2 transition ${
+                        link.active
+                          ? "bg-white text-[#171020]"
+                          : "text-white/55 hover:bg-white/10 hover:text-white"
+                      }`}
+                      href={link.href}
+                      key={link.label}
+                    >
+                      {link.label}
+                    </Link>
+                  )
                 ))}
               </nav>
             </aside>
