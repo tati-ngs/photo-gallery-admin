@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type Session } from "@supabase/supabase-js";
 import {
   adminAccessTokenCookie,
   adminRefreshTokenCookie,
@@ -18,12 +18,16 @@ const publicPathPrefixes = [
 const isPublicPath = (pathname: string) =>
   publicPathPrefixes.some((prefix) => pathname.startsWith(prefix));
 
-const refreshAdminSession = async (request: NextRequest) => {
-  const refreshToken = request.cookies.get(adminRefreshTokenCookie)?.value;
+const inFlightRefreshes = new Map<string, Promise<Session | null>>();
+
+const refreshAdminSession = (refreshToken: string) => {
+  const existingRefresh = inFlightRefreshes.get(refreshToken);
+  if (existingRefresh) return existingRefresh;
+
   const { anonKey, url } = getSupabaseAuthConfig();
 
-  if (!refreshToken || !anonKey || !url) {
-    return null;
+  if (!anonKey || !url) {
+    return Promise.resolve(null);
   }
 
   const supabase = createClient(url, anonKey, {
@@ -32,37 +36,30 @@ const refreshAdminSession = async (request: NextRequest) => {
       persistSession: false,
     },
   });
-  const { data, error } = await supabase.auth.refreshSession({
-    refresh_token: refreshToken,
-  });
+  const refreshPromise = supabase.auth
+    .refreshSession({ refresh_token: refreshToken })
+    .then(({ data, error }) => (error || !data.session ? null : data.session))
+    .catch(() => null)
+    .finally(() => {
+      setTimeout(() => inFlightRefreshes.delete(refreshToken), 15_000);
+    });
 
-  if (error || !data.session) {
-    return null;
+  inFlightRefreshes.set(refreshToken, refreshPromise);
+  return refreshPromise;
+};
+
+const denyRequest = (request: NextRequest) => {
+  const { pathname, search } = request.nextUrl;
+
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Make the renewed token available to the page rendered by this request.
-  request.cookies.set(adminAccessTokenCookie, data.session.access_token);
-  request.cookies.set(adminRefreshTokenCookie, data.session.refresh_token);
-
-  const response = NextResponse.next({ request });
-  const secure = process.env.NODE_ENV === "production";
-
-  response.cookies.set(adminAccessTokenCookie, data.session.access_token, {
-    httpOnly: true,
-    maxAge: data.session.expires_in,
-    path: "/",
-    sameSite: "lax",
-    secure,
-  });
-  response.cookies.set(adminRefreshTokenCookie, data.session.refresh_token, {
-    httpOnly: true,
-    maxAge: 60 * 60 * 24 * 30,
-    path: "/",
-    sameSite: "lax",
-    secure,
-  });
-
-  return response;
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  loginUrl.searchParams.set("next", `${pathname}${search}`);
+  return NextResponse.redirect(loginUrl);
 };
 
 export async function proxy(request: NextRequest) {
@@ -73,6 +70,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const currentSession = request.cookies.get(adminAccessTokenCookie)?.value;
+  const currentRefreshToken = request.cookies.get(adminRefreshTokenCookie)?.value;
 
   const { anonKey, url } = getSupabaseAuthConfig();
 
@@ -96,20 +94,37 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const refreshedResponse = await refreshAdminSession(request);
+  if (currentRefreshToken) {
+    const session = await refreshAdminSession(currentRefreshToken);
 
-  if (refreshedResponse) {
-    return refreshedResponse;
+    if (session) {
+      request.cookies.set(adminAccessTokenCookie, session.access_token);
+      request.cookies.set(adminRefreshTokenCookie, session.refresh_token);
+
+      const response = NextResponse.next({ request });
+      const secure = process.env.NODE_ENV === "production";
+      response.cookies.set(adminAccessTokenCookie, session.access_token, {
+        httpOnly: true,
+        maxAge: session.expires_in,
+        path: "/",
+        sameSite: "lax",
+        secure,
+      });
+      response.cookies.set(adminRefreshTokenCookie, session.refresh_token, {
+        httpOnly: true,
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+        sameSite: "lax",
+        secure,
+      });
+      return response;
+    }
   }
 
-  const loginUrl = request.nextUrl.clone();
-  loginUrl.pathname = "/login";
-  loginUrl.searchParams.set("next", `${pathname}${search}`);
-
-  return NextResponse.redirect(loginUrl);
+  return denyRequest(request);
 }
 
 export const config = {
-  matcher: ["/((?!.*\\.).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };
 
